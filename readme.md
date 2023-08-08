@@ -25,7 +25,8 @@ This app builds on top of the FeedParser library to provide feed management, sto
 3. Setup some values in `settings.py` so that your feed reader politely announces itself to servers:
    * Set `FEEDS_USER_AGENT` to the name and (optionally version) of your service e.g. `"ExampleFeeder/1.2"`
    * Set `FEEDS_SERVER` to preferred web address of your service so that feed hosts can locate you if required e.g. `https://example.com`
-4. Setup a mechanism to periodically refresh the feeds (see below)
+4. Set `FEEDS_FORCE_UPDATE_SOURCE_FIELDS` to False to only update source fields (like name and description) when they are empty.
+5. Setup a mechanism to periodically refresh the feeds (see below)
 
 ## Basic Models
 

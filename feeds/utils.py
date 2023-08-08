@@ -16,12 +16,13 @@ import requests
 import pyrfc3339
 import json
 
-
-
 import hashlib
 from random import choice
 import logging
 
+
+# setting can be "DISABLED", "ALL", or "EMPTY"
+FEEDS_FORCE_UPDATE_SOURCE_FIELDS = getattr(settings, "FEEDS_FORCE_UPDATE_SOURCE_FIELDS", True)
 
 
 class NullOutput(object):
@@ -438,43 +439,46 @@ def parse_feed_xml(source_feed, feed_content, output):
     source_feed.save(update_fields=["last_success", "last_result"])
     
     if ok:
-        try:
-            source_feed.name = f.feed.title
-            source_feed.save(update_fields=["name"])
-        except Exception as ex:
-            output.write("\nUpdate name error:" + str(ex))
-            pass
 
-        try:
-            source_feed.site_url = f.feed.link
-            source_feed.save(update_fields=["site_url"])
-        except Exception as ex:
-            pass
-    
+        if not source_feed.name or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
+            try:
+                source_feed.name = f.feed.title
+                source_feed.save(update_fields=["name"])
+            except Exception as ex:
+                output.write("\nUpdate name error:" + str(ex))
+                pass
 
-        try:
-            source_feed.image_url = f.feed.image.href
-            source_feed.save(update_fields=["image_url"])
-        except:
-            pass
+        if not source_feed.site_url or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
+            try:
+                source_feed.site_url = f.feed.link
+                source_feed.save(update_fields=["site_url"])
+            except Exception:
+                pass
 
+        if not source_feed.image_url or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
+            try:
+                source_feed.image_url = f.feed.image.href
+                source_feed.save(update_fields=["image_url"])
+            except Exception:
+                pass
 
         # either of these is fine, prefer description over summary
         # also feedparser will give us itunes:summary etc if there
-        try:
-            source_feed.description = f.feed.summary
-        except:
-            pass
+        if not source_feed.description or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
+            try:
+                source_feed.description = f.feed.summary
+            except Exception:
+                pass
 
-        try:
-            source_feed.description = f.feed.description
-        except:
-            pass
+            try:
+                source_feed.description = f.feed.description
+            except Exception:
+                pass
 
-        try:
-            source_feed.save(update_fields=["description"])
-        except:
-            pass
+            try:
+                source_feed.save(update_fields=["description"])
+            except Exception:
+                pass
 
 
         #output.write(entries)
@@ -539,7 +543,7 @@ def parse_feed_xml(source_feed, feed_content, output):
                 p.save(update_fields=["title"])
             except Exception as ex:
                 output.write("Title error:" + str(ex))
-                            
+
             try:
                 p.link = e.link
                 p.save(update_fields=["link"])
@@ -552,15 +556,11 @@ def parse_feed_xml(source_feed, feed_content, output):
             except:
                 pass
 
-
-        
             try:
                 p.author = e.author
                 p.save(update_fields=["author"])
             except Exception as ex:
                 p.author = ""
-
-
 
             try:
                 p.body = body                          
@@ -715,16 +715,14 @@ def parse_feed_json(source_feed, feed_content, output):
 
         source_feed.save(update_fields=["last_success", "last_result"])
 
-
     except Exception as ex:
         source_feed.last_result = "Feed Parse Error"
         entries = []
         source_feed.interval += 120
         ok = False
-    
+
     if ok:
-    
-    
+
         if "expired" in f and f["expired"]:
             # This feed says it is done
             # TODO: permanently disable
@@ -733,38 +731,36 @@ def parse_feed_json(source_feed, feed_content, output):
             source_feed.last_result = "This feed has expired"
             return (False, False, source_feed.interval)
 
-        try:
-            source_feed.site_url = f["home_page_url"]
-            source_feed.name = f["title"]
+        if not source_feed.name or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
+            try:
+                source_feed.name = parser.sanitizer._sanitize_html(f['title'], "utf-8", 'text/html')
+                source_feed.save(update_fields=["name"])
+            except Exception as ex:
+                pass
 
-            source_feed.save(update_fields=["site_url", "title"])
+        if not source_feed.site_url or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
+            try:
+                source_feed.site_url = f["home_page_url"]
+                source_feed.save(update_fields=["site_url"])
+            except Exception as ex:
+                pass
 
-        except Exception as ex:
-            pass
+        if not source_feed.description or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
+            try:
+                if "description" in f:
+                    _customize_sanitizer(parser)
+                    source_feed.description = parser.sanitizer._sanitize_html(f["description"], "utf-8", 'text/html')
+                    source_feed.save(update_fields=["description"])
+            except Exception as ex:
+                pass
 
-
-        try:
-            if "description" in f:
-                _customize_sanitizer(parser)
-                source_feed.description = parser.sanitizer._sanitize_html(f["description"], "utf-8", 'text/html')
-                source_feed.save(update_fields=["description"])
-        except Exception as ex:
-            pass
-                    
-        try:
-            _customize_sanitizer(parser)
-            source_feed.name = parser.sanitizer._sanitize_html(source_feed.name, "utf-8", 'text/html')
-            source_feed.save(update_fields=["name"])
-
-        except Exception as ex:
-            pass
-
-        try:
-            if "icon" in f:
-                source_feed.image_url = f["icon"]
-                source_feed.save(update_fields=["icon"])
-        except Exception as ex:
-            pass
+        if not source_feed.image_url or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
+            try:
+                if "icon" in f:
+                    source_feed.image_url = f["icon"]
+                    source_feed.save(update_fields=["image_url"])
+            except Exception as ex:
+                pass
 
         #output.write(entries)
         entries.reverse() # Entries are typically in reverse chronological order - put them in right order
@@ -774,10 +770,8 @@ def parse_feed_json(source_feed, feed_content, output):
                 body = e["content_text"]
             if "content_html" in e:
                 body = e["content_html"] # prefer html over text
-                
+
             body = fix_relative(body,source_feed.site_url)
-            
-            
 
             try:
                 guid = e["id"]
@@ -788,7 +782,7 @@ def parse_feed_json(source_feed, feed_content, output):
                     m = hashlib.md5()
                     m.update(body.encode("utf-8"))
                     guid = m.hexdigest()
-                    
+
             try:
                 p  = Post.objects.filter(source=source_feed).filter(guid=guid)[0]
                 output.write("EXISTING " + guid + "\n")
