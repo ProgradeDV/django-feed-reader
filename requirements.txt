@@ -1,6 +1,5 @@
 
 sgmllib3k
 feedparser
-BeautifulSoup4
 requests
 pyrfc3339
