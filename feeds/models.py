@@ -1,21 +1,19 @@
-from django.db import models
-from django.utils.timezone import utc
-
-import time
+"""
+Models to store Feed Sources, Posts, and supporting data
+"""
 import datetime
-from urllib.parse import urlencode
 import logging
-import sys
-import email
+from urllib.parse import urlencode
 
-
+from django.db import models
 import django.utils as django_utils
 from django.utils.deconstruct import deconstructible
 
 
 @deconstructible
-class ExpiresGenerator(object):
-    """Callable Key Generator that returns a random keystring.
+class ExpiresGenerator():
+    """
+    Callable Key Generator that returns a random keystring.
     """
 
     def __call__(self):
@@ -24,19 +22,21 @@ class ExpiresGenerator(object):
 
 
 class Source(models.Model):
-    # This is an actual feed that we poll
+    """
+    This is an actual feed that we poll
+    """
     name          = models.CharField(max_length=255, blank=True, null=True)
     site_url      = models.CharField(max_length=255, blank=True, null=True)
     feed_url      = models.CharField(max_length=512)
     image_url     = models.CharField(max_length=512, blank=True, null=True)
-    
+
     description   = models.TextField(null=True, blank=True)
 
     last_polled   = models.DateTimeField(blank=True, null=True)
     due_poll      = models.DateTimeField(default=datetime.datetime(1900, 1, 1)) # default to distant past to put new sources to front of queue
     etag          = models.CharField(max_length=255, blank=True, null=True)
     last_modified = models.CharField(max_length=255, blank=True, null=True) # just pass this back and forward between server and me , no need to parse
-    
+
     last_result    = models.CharField(max_length=255,blank=True,null=True)
     interval       = models.PositiveIntegerField(default=400)
     last_success   = models.DateTimeField(blank=True, null=True)
@@ -45,83 +45,79 @@ class Source(models.Model):
     status_code    = models.PositiveIntegerField(default=0)
     last_302_url   = models.CharField(max_length=512, null=True, blank=True)
     last_302_start = models.DateTimeField(null=True, blank=True)
-    
-    max_index     = models.IntegerField(default=0)
-    
-    num_subs      = models.IntegerField(default=1)
-    
+
+    max_index      = models.IntegerField(default=0)
+    num_subs       = models.IntegerField(default=1)
+
     is_cloudflare  = models.BooleanField(default=False)
 
-    
+
     def __str__(self):
-        return self.display_name
-    
+        return str(self.display_name)
+
+
     @property
     def best_link(self):
-        #the html link else hte feed link
-        if self.site_url is None or self.site_url == '':
+        """the html link else hte feed link"""
+        if not self.site_url:
             return self.feed_url
-        else:
-            return self.site_url
+        return self.site_url
+
 
     @property
-    def display_name(self):
-        if self.name is None or self.name == "":
+    def display_name(self) -> str:
+        """The name to render"""
+        if not self.name:
             return self.best_link
-        else:
-            return self.name
-    
-    @property
-    def garden_style(self):
-        
-        if not self.live:
-            css = "background-color:#ccc;"
-        elif self.last_change is None or self.last_success is None:
-            css = "background-color:#D00;color:white"
-        else:
-            dd = datetime.datetime.utcnow().replace(tzinfo=utc) - self.last_change
-            
-            days = int (dd.days / 2)
-            
-            col = 255 - days
-            if col < 0: col = 0
-            
-            css = "background-color:#ff%02x%02x" % (col,col)
+        return self.name
 
-            if col < 128:
-                css += ";color:white"
-            
-        return css
-        
+
     @property
-    def health_box(self):
-        
+    def garden_style(self) -> str:
+        """garden style css"""
+
         if not self.live:
-            css="#ccc;"
-        elif self.last_change == None or self.last_success == None:
-            css="#F00;"
-        else:
-            dd = datetime.datetime.utcnow().replace(tzinfo=utc) - self.last_change
-            
-            days = int (dd.days/2)
-            
-            red = days
-            if red > 255:
-                red = 255
-            
-            green = 255-days;
-            if green < 0:
-                green = 0
-            
-            css = "#%02x%02x00" % (red,green)
-            
+            return "background-color:#ccc;"
+
+        if self.last_change is None or self.last_success is None:
+            return "background-color:#D00;color:white"
+
+        dd = datetime.datetime.utcnow() - self.last_change
+
+        days = int (dd.days / 2)
+        col = max(255 - days, 0)
+
+        css = f"background-color:#ff{col:02x}{col:02x}"
+
+        if col < 128:
+            css += ";color:white"
+
         return css
-        
+
+
+    @property
+    def health_box(self) -> str:
+        """health box css"""
+
+        if not self.live:
+            return "#ccc;"
+
+        if self.last_change is None or self.last_success is None:
+            return "#F00;"
+
+        dd = datetime.datetime.utcnow() - self.last_change
+
+        days = int(dd.days / 2)
+        red = min(days, 255)
+        green = max(0, 255 - days)
+
+        return f"#{red:02x}{green:02x}00"
+
+
 
 class Post(models.Model):
+    """an entry in a feed"""
 
-    # an entry in a feed
-    
     source        = models.ForeignKey(Source, on_delete=models.CASCADE, related_name='posts')
     title         = models.TextField(blank=True)
     body          = models.TextField()
@@ -135,33 +131,35 @@ class Post(models.Model):
 
 
     @property
-    def title_url_encoded(self):
+    def title_url_encoded(self) -> str:
+        """
+        encoded url for title
+        """
         try:
             ret = urlencode({"X":self.title})
-            if len(ret) > 2: ret = ret[2:]
-        except:
-            logging.info("Failed to url encode title of post {}".format(self.id))
-            ret = ""        
+
+        except Exception: # pylint: disable=broad-exception-caught
+            logging.exception("Failed to url encode title of post %s", self.id)
+            return ""
+
+        if len(ret) > 2:
+            return ret[2:]
+        return ret
+
 
     def __str__(self):
-        return "%s: post %d, %s" % (self.source.display_name, self.index, self.title)
-        
-    @property
-    def recast_link(self):
-    
-        # TODO: This needs to come out, it's just for recast
-    
-        #if "?" in self.link:
-        #    return self.link + ("&recast_id=%d" % self.id)
-        #else:
-        #    return self.link + ("?recast_id=%d" % self.id)current_subscription
-        
-        return "/post/%d/" % self.id
+        return f"{self.source.display_name}: post {self.index}, {self.title}"
+
 
     class Meta:
         ordering = ["index"]
-        
+
+
+
 class Enclosure(models.Model):
+    """
+    What podcasts use to send their audio
+    """
 
     post   = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='enclosures')
     length = models.IntegerField(default=0)
@@ -169,26 +167,15 @@ class Enclosure(models.Model):
     type   = models.CharField(max_length=256)
     medium = models.CharField(max_length=25, null=True, blank=True)
     description = models.CharField(max_length=512, null= True, blank=True)
-    
-    @property
-    def recast_link(self):
-    
-        # TODO: This needs to come out, it's just for recast
 
-        #if "?" in self.href:
-        #    return self.href + ("&recast_id=%d" % self.id)
-        #else:
-        #    return self.href + ("?recast_id=%d" % self.id)
 
-        return "/enclosure/%d/" % self.id
-        
-        
+
 class WebProxy(models.Model):
-    # this class if for Cloudflare avoidance and contains a list of potential
-    # web proxies that we can try, scraped from the internet
+    """
+    This class if for Cloudflare avoidance and contains a list of potential
+    Web proxies that we can try, scraped from the internet
+    """
     address = models.CharField(max_length=255)
-    
-    def __str__(self):
-        return "Proxy:{}".format(self.address)
 
-        
+    def __str__(self):
+        return f"Proxy:{self.address}"

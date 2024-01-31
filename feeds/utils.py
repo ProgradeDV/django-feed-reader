@@ -43,7 +43,7 @@ POST_KEYS = {
 class NullOutput():
     """little class for when we have no outputter"""
     def write(self, _str):
-        pass
+        """output nothing"""
 
 
 def _customize_sanitizer(feed_parser):
@@ -79,7 +79,8 @@ def get_agent(source_feed) -> str:
 
 
 
-def random_user_agent():
+def random_user_agent() -> str:
+    """return a random user agent"""
 
     return choice([
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.1.1 Safari/605.1.15",
@@ -97,7 +98,6 @@ def random_user_agent():
 
 
 def fix_relative(html, url):
-
     """ this is fucking cheesy """
     try:
         base = "/".join(url.split("/")[:3])
@@ -117,7 +117,7 @@ def fix_relative(html, url):
         html = html.replace("href='/", f"href='{base}/")
         html = html.replace('href="/', f'href="{base}/')
 
-    except Exception as ex:
+    except Exception:
         pass
 
     return html
@@ -125,6 +125,9 @@ def fix_relative(html, url):
 
 
 def update_feeds(max_feeds=3, output=NullOutput()):
+    """
+    Fetch all feeds ready for update
+    """
 
     todo = Source.objects.filter(Q(due_poll__lt = timezone.now()) & Q(live = True))
 
@@ -138,12 +141,14 @@ def update_feeds(max_feeds=3, output=NullOutput()):
         read_feed(src, output)
 
     # kill shit proxies
-
     WebProxy.objects.filter(address='X').delete()
 
 
 
 def read_feed(source_feed, output=NullOutput()):
+    """
+    Fetch a feed
+    """
 
     old_interval = source_feed.interval
     was302 = False
@@ -162,7 +167,7 @@ def read_feed(source_feed, output=NullOutput()):
     if source_feed.is_cloudflare : # Fuck you !
 
         if settings.FEEDS_CLOUDFLARE_WORKER:
-            feed_url = "{}/read/?target={}".format(settings.FEEDS_CLOUDFLARE_WORKER, feed_url)
+            feed_url = f"{settings.FEEDS_CLOUDFLARE_WORKER}/read/?target={feed_url}"
         else:
             try:
                 proxy = get_proxy(output)
@@ -173,7 +178,7 @@ def read_feed(source_feed, output=NullOutput()):
                       'http': proxy.address,
                       'https': proxy.address,
                     }
-            except:
+            except Exception:
                 pass
 
     if source_feed.etag:
@@ -286,7 +291,6 @@ def read_feed(source_feed, output=NullOutput()):
         except Exception:
             output.write("\nError redirecting.")
             source_feed.last_result = ("Error redirecting feed to " + new_url)[:255]
-            pass
 
     elif ret.status_code == 302 or ret.status_code == 303 or ret.status_code == 307: #Temporary redirect
         new_url = ""
@@ -394,9 +398,9 @@ def import_feed(source_feed, feed_body, content_type, output=NullOutput()):
     changed = False
 
     if "xml" in content_type or feed_body[0:1] == b"<":
-        (ok,changed) = parse_feed_xml(source_feed, feed_body, output)
+        ok, changed = parse_feed_xml(source_feed, feed_body, output)
     elif "json" in content_type or feed_body[0:1] == b"{":
-        (ok,changed) = parse_feed_json(source_feed, str(feed_body, "utf-8"), output)
+        ok, changed = parse_feed_json(source_feed, str(feed_body, "utf-8"), output)
     else:
         ok = False
         source_feed.last_result = "Unknown Feed Type: " + content_type
@@ -487,31 +491,31 @@ def parse_feed_xml(source_feed, feed_content, output):
 
         #output.write(entries)
         entries.reverse() # Entries are typically in reverse chronological order - put them in right order
-        for e in entries:
+        for entry in entries:
 
             # we are going to take the longest
             body = ""
 
-            if hasattr(e, "summary"):
-                if len(e.summary) > len(body):
-                    body = e.summary
+            if hasattr(entry, "summary"):
+                if len(entry.summary) > len(body):
+                    body = entry.summary
 
-            if hasattr(e, "summary_detail"):
-                if len(e.summary_detail.value) >= len(body):
-                    body = e.summary_detail.value
+            if hasattr(entry, "summary_detail"):
+                if len(entry.summary_detail.value) >= len(body):
+                    body = entry.summary_detail.value
 
-            if hasattr(e, "description"):
-                if len(e.description) >= len(body):
-                    body = e.description
+            if hasattr(entry, "description"):
+                if len(entry.description) >= len(body):
+                    body = entry.description
 
             body = fix_relative(body, source_feed.site_url)
 
             try:
-                guid = e.guid
-            except Exception as ex:
+                guid = entry.guid
+            except Exception:
                 try:
-                    guid = e.link
-                except Exception as ex:
+                    guid = entry.link
+                except Exception:
                     md5 = hashlib.md5()
                     md5.update(body.encode("utf-8"))
                     guid = md5.hexdigest()
@@ -528,10 +532,10 @@ def parse_feed_xml(source_feed, feed_content, output):
 
 
                 try:
-                    post.created  = datetime.datetime.fromtimestamp(time.mktime(e.published_parsed)).replace(tzinfo=timezone.utc)
+                    post.created  = datetime.datetime.fromtimestamp(time.mktime(entry.published_parsed)).replace(tzinfo=timezone.utc)
                 except Exception:
                     try:
-                        post.created  = datetime.datetime.fromtimestamp(time.mktime(e.updated_parsed)).replace(tzinfo=timezone.utc)
+                        post.created  = datetime.datetime.fromtimestamp(time.mktime(entry.updated_parsed)).replace(tzinfo=timezone.utc)
                     except Exception as ex:
                         output.write("CREATED ERROR:" + str(ex))
                         post.created  = timezone.now()
@@ -540,25 +544,25 @@ def parse_feed_xml(source_feed, feed_content, output):
                 post.save()
 
             try:
-                post.title = e.title
+                post.title = entry.title
                 post.save(update_fields=["title"])
             except Exception as ex:
                 output.write("Title error:" + str(ex))
 
             try:
-                post.link = e.link
+                post.link = entry.link
                 post.save(update_fields=["link"])
             except Exception as ex:
                 output.write("Link error:" + str(ex))
 
             try:
-                post.image_url = e.image.href
+                post.image_url = entry.image.href
                 post.save(update_fields=["image_url"])
             except Exception:
                 pass
 
             try:
-                post.author = e.author
+                post.author = entry.author
                 post.save(update_fields=["author"])
             except Exception as ex:
                 post.author = ""
@@ -574,12 +578,12 @@ def parse_feed_xml(source_feed, feed_content, output):
             try:
                 seen_files = []
 
-                post_files = e["enclosures"]
+                post_files = entry["enclosures"]
                 non_dupes = []
 
                 # find any files in media_content that aren't already declared as enclosures
-                if "media_content" in e:
-                    for enclosure in e["media_content"]:
+                if "media_content" in entry:
+                    for enclosure in entry["media_content"]:
                         found = False
                         for ff in post_files:
                             if ff["href"] == enclosure["url"]:
@@ -608,12 +612,12 @@ def parse_feed_xml(source_feed, feed_content, output):
 
                             try:
                                 enclosure.length = int(post_file[length])
-                            except:
+                            except Exception:
                                 enclosure.length = 0
 
                             try:
                                 type = post_file["type"]
-                            except:
+                            except Exception:
                                 type = "audio/mpeg"  # we are assuming podcasts here but that's probably not safe
 
                             enclosure.type = type
@@ -666,8 +670,7 @@ def parse_feed_xml(source_feed, feed_content, output):
                         pass
 
             except Exception as ex:
-                if output:
-                    output.write("No enclosures - " + str(ex))
+                output.write("No enclosures - " + str(ex))
 
     if is_first and source_feed.posts.all().count() > 0:
         # If this is the first time we have parsed this
@@ -690,7 +693,7 @@ def parse_feed_xml(source_feed, feed_content, output):
     return (ok,changed)
 
 
-def parse_feed_json(source_feed, feed_content, output):
+def parse_feed_json(source_feed: Source, feed_content, output) -> tuple[bool, bool]:
 
     ok = True
     changed = False
@@ -719,9 +722,9 @@ def parse_feed_json(source_feed, feed_content, output):
             # This feed says it is done
             # TODO: permanently disable
             # for now source_feed.interval to max
-            source_feed.interval = (24*3*60)
+            source_feed.interval = 24 * 3 * 60
             source_feed.last_result = "This feed has expired"
-            return (False, False, source_feed.interval)
+            return (False, False)
 
         if not source_feed.name or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
             try:
@@ -779,7 +782,7 @@ def parse_feed_json(source_feed, feed_content, output):
                 post  = Post.objects.filter(source=source_feed).filter(guid=guid)[0]
                 output.write("EXISTING " + guid + "\n")
 
-            except Exception as ex:
+            except Exception:
                 output.write("NEW " + guid + "\n")
                 post = Post(index=0, body=' ')
                 post.found = timezone.now()
@@ -788,7 +791,7 @@ def parse_feed_json(source_feed, feed_content, output):
 
             try:
                 title = entry["title"]
-            except Exception as ex:
+            except Exception:
                 title = ""
 
             # borrow the RSS parser's sanitizer
