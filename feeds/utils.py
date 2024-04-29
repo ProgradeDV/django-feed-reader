@@ -10,60 +10,17 @@ import datetime
 
 import requests
 import pyrfc3339
-import feedparser as parser
+import feedparser
 
 from django.db.models import Q
 from django.utils import timezone
 from django.conf import settings
 
-from feeds.models import Source, Enclosure, Post, WebProxy
+from feeds.models import Source, Enclosure, Entry, WebProxy
 
 
-
-# setting can be "DISABLED", "ALL", or "EMPTY"
 FEEDS_FORCE_UPDATE_SOURCE_FIELDS = getattr(settings, "FEEDS_FORCE_UPDATE_SOURCE_FIELDS", True)
-
-SOURCE_KEYS = {
-    'name': ('title', 'name'),
-    'site_url': ('site_url'),
-    'image_url': ('image_url'),
-    'description': ('description', 'summary')
-}
-
-POST_KEYS = {
-    'title': (),
-    'body': (),
-    'link': (),
-    'created': (),
-    'author': (),
-    'image_url': (),
-}
-
-
-class NullOutput():
-    """little class for when we have no outputter"""
-    def write(self, _str):
-        """output nothing"""
-
-
-def _customize_sanitizer(feed_parser):
-    """modify sanitizer to remove bad attributes"""
-
-    bad_attributes = [
-        "align",
-        "valign",
-        "hspace",
-        "width",
-        "height"
-    ]
-
-    for item in bad_attributes:
-        try:
-            if item in feed_parser.sanitizer._HTMLSanitizer.acceptable_attributes:
-                feed_parser.sanitizer._HTMLSanitizer.acceptable_attributes.remove(item)
-        except Exception:
-            logging.debug("Could not remove %s", item)
-
+logger = logging.getLogger('RefreshFeeds')
 
 
 def get_agent(source_feed) -> str:
@@ -124,36 +81,46 @@ def fix_relative(html, url):
 
 
 
-def update_feeds(max_feeds=3, output=NullOutput()):
+def update_due_sources(max_feeds: int = 3) -> list:
+    """
+    Get the list of sources due for this update.
+
+    ### Parameters:
+    - max_feeds (int): the maximum number to return
+
+    ### Returns
+    - list of sources to update
+    """
+    due_sources = Source.objects.filter(due_poll__lt = timezone.now(), live = True)
+
+    return due_sources.order_by("due_poll")[:max_feeds]
+
+
+
+def update_feeds(max_feeds: int = 3):
     """
     Fetch all feeds ready for update
     """
+    due_sources = update_due_sources(max_feeds = max_feeds)
 
-    todo = Source.objects.filter(Q(due_poll__lt = timezone.now()) & Q(live = True))
+    logger.info("Queue size is %s", due_sources.count())
 
-    output.write(f"Queue size is {todo.count()}")
-
-    sources = todo.order_by("due_poll")[:max_feeds]
-
-    output.write(f"\nProcessing {sources.count()}\n\n")
-
-    for src in sources:
-        read_feed(src, output)
+    for src in due_sources:
+        read_feed(src)
 
     # kill shit proxies
     WebProxy.objects.filter(address='X').delete()
 
 
 
-def read_feed(source_feed, output=NullOutput()):
+def read_feed(source_feed: Source):
     """
-    Fetch a feed
+    Fetch a feed, update the management fields
     """
+    logger.info('updating feed: %s', str(Source))
 
     old_interval = source_feed.interval
     was302 = False
-
-    output.write("\n------------------------------\n")
 
     source_feed.last_polled = timezone.now()
 
@@ -170,7 +137,7 @@ def read_feed(source_feed, output=NullOutput()):
             feed_url = f"{settings.FEEDS_CLOUDFLARE_WORKER}/read/?target={feed_url}"
         else:
             try:
-                proxy = get_proxy(output)
+                proxy = get_proxy()
 
                 if proxy.address != "X":
 
@@ -186,8 +153,6 @@ def read_feed(source_feed, output=NullOutput()):
     if source_feed.last_modified:
         headers["If-Modified-Since"] = str(source_feed.last_modified)
 
-    output.write("\nFetching %s" % feed_url)
-
     ret = None
     try:
         ret = requests.get(
@@ -201,31 +166,29 @@ def read_feed(source_feed, output=NullOutput()):
 
         source_feed.status_code = ret.status_code
         source_feed.last_result = "Unhandled Case"
-        output.write(str(ret))
+        logger.info(str(ret))
 
     except Exception as ex:
         source_feed.last_result = ("Fetch error:" + str(ex))[:255]
         source_feed.status_code = 0
-        output.write("\nFetch error: " + str(ex))
+        logger.exception("Fetch error, Burning the proxy")
 
         if proxy:
             source_feed.last_result = "Proxy failed. Next retry will use new proxy"
             source_feed.status_code = 1  # this will stop us increasing the interval
-
-            output.write("\nBurning the proxy.")
-            proxy.delete()
             source_feed.interval /= 2
+            proxy.delete()
 
     if ret is None and source_feed.status_code == 1:   # er ??
         pass
 
-    elif ret == None or source_feed.status_code == 0:
+    elif ret is None or source_feed.status_code == 0:
         source_feed.interval += 120
 
     elif ret.status_code < 200 or ret.status_code >= 500:
         #errors, impossible return codes
         source_feed.interval += 120
-        source_feed.last_result = "Server error fetching feed (%d)" % ret.status_code
+        source_feed.last_result = f"Server error fetching feed ({ret.status_code})"
 
     elif ret.status_code == 404:
         #not found
@@ -242,7 +205,7 @@ def read_feed(source_feed, output=NullOutput()):
             if source_feed.is_cloudflare and proxy is not None:
                 # we are already proxied - this proxy on cloudflare's shit list too?
                 proxy.delete()
-                output.write("\nProxy seemed to also be blocked, burning")
+                logger.info("Proxy seemed to also be blocked, burning")
                 source_feed.interval /= 2
                 source_feed.last_result = "Proxy kind of worked but still got cloudflared."
             else:
@@ -289,7 +252,7 @@ def read_feed(source_feed, output=NullOutput()):
                 source_feed.last_result = "Feed has moved but no location provided"
 
         except Exception:
-            output.write("\nError redirecting.")
+            logger.exception("Error redirecting.")
             source_feed.last_result = ("Error redirecting feed to " + new_url)[:255]
 
     elif ret.status_code == 302 or ret.status_code == 303 or ret.status_code == 307: #Temporary redirect
@@ -355,13 +318,14 @@ def read_feed(source_feed, output=NullOutput()):
             except Exception as ex:
                 source_feed.last_modified = None
 
-        output.write("\netag:%s\nLast Mod:%s\n\n" % (source_feed.etag,source_feed.last_modified))
+        logger.info("\netag:%s\nLast Mod:%s\n\n", source_feed.etag, source_feed.last_modified)
 
         content_type = "Not Set"
         if "Content-Type" in ret.headers:
             content_type = ret.headers["Content-Type"]
 
-        (ok,changed) = import_feed(source_feed=source_feed, feed_body=ret.content, content_type=content_type, output=output)
+        # parse and update the posts
+        (ok,changed) = import_feed(source_feed=source_feed, feed_body=ret.content, content_type=content_type)
 
         if ok and changed:
             source_feed.interval /= 2
@@ -380,7 +344,7 @@ def read_feed(source_feed, output=NullOutput()):
     if source_feed.interval > (60 * 24):
         source_feed.interval = (60 * 24) # no more than a day
 
-    output.write("\nUpdating source_feed.interval from %d to %d\n" % (old_interval, source_feed.interval))
+    logger.info("Updating source_feed.interval from %d to %d\n", old_interval, source_feed.interval)
     source_feed.due_poll = timezone.now() + datetime.timedelta(minutes=source_feed.interval)
     source_feed.save(update_fields=[
                 "due_poll", "interval", "last_result",
@@ -392,15 +356,15 @@ def read_feed(source_feed, output=NullOutput()):
 
 
 
-def import_feed(source_feed, feed_body, content_type, output=NullOutput()):
+def import_feed(source_feed, feed_body, content_type):
 
     ok = False
     changed = False
 
     if "xml" in content_type or feed_body[0:1] == b"<":
-        ok, changed = parse_feed_xml(source_feed, feed_body, output)
+        ok, changed = parse_feed_xml(source_feed, feed_body)
     elif "json" in content_type or feed_body[0:1] == b"{":
-        ok, changed = parse_feed_json(source_feed, str(feed_body, "utf-8"), output)
+        ok, changed = parse_feed_json(source_feed, str(feed_body, "utf-8"))
     else:
         ok = False
         source_feed.last_result = "Unknown Feed Type: " + content_type
@@ -411,7 +375,7 @@ def import_feed(source_feed, feed_body, content_type, output=NullOutput()):
 
         idx = source_feed.max_index
         # give indices to posts based on created date
-        posts = Post.objects.filter(Q(source=source_feed) & Q(index=0)).order_by("created")
+        posts = Entry.objects.filter(Q(source=source_feed) & Q(index=0)).order_by("created")
         for p in posts:
             idx += 1
             p.index = idx
@@ -423,7 +387,7 @@ def import_feed(source_feed, feed_body, content_type, output=NullOutput()):
 
 
 
-def parse_feed_xml(source_feed, feed_content, output):
+def parse_feed_xml(source_feed: Source, feed_content) -> tuple[bool, bool]:
 
     ok = True
     changed = False
@@ -431,68 +395,48 @@ def parse_feed_xml(source_feed, feed_content, output):
 
     #output.write(ret.content)
     try:
-
-        _customize_sanitizer(parser)
-        f = parser.parse(feed_content) #need to start checking feed parser errors here
-        entries = f['entries']
-        if len(entries):
-            source_feed.last_success = timezone.now() #in case we start auto unsubscribing long dead feeds
-        else:
-            source_feed.last_result = "Feed is empty"
-            ok = False
-
+        feed_data = feedparser.parse(feed_content) #need to start checking feed parser errors here
     except Exception:
+        logger.exception('Feed Parse Error')
+
         source_feed.last_result = "Feed Parse Error"
-        entries = []
-        ok = False
+        source_feed.save(update_fields=["last_result"])
 
-    source_feed.save(update_fields=["last_success", "last_result"])
+        return False, False
 
-    if ok:
 
-        if not source_feed.name or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
-            try:
-                source_feed.name = f.feed.title
-                source_feed.save(update_fields=["name"])
-            except Exception as ex:
-                output.write("\nUpdate name error:" + str(ex))
+    entries = feed_data['entries']
+    if len(entries):
+        source_feed.last_success = timezone.now() #in case we start auto unsubscribing long dead feeds
+    else:
+        source_feed.last_result = "Feed is empty"
+        source_feed.save(update_fields=["last_success", "last_result"])
+        return False, False
 
-        if not source_feed.site_url or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
-            try:
-                source_feed.site_url = f.feed.link
-                source_feed.save(update_fields=["site_url"])
-            except Exception:
-                pass
+    if not source_feed.name or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
+        source_feed.name = feed_data.feed.title
 
-        if not source_feed.image_url or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
-            try:
-                source_feed.image_url = f.feed.image.href
-                source_feed.save(update_fields=["image_url"])
-            except Exception:
-                pass
+    if not source_feed.site_url or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
+        source_feed.site_url = feed_data.feed.link
 
-        # either of these is fine, prefer description over summary
-        # also feedparser will give us itunes:summary etc if there
-        if not source_feed.description or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
-            try:
-                source_feed.description = f.feed.summary
-            except Exception:
-                pass
+    if not source_feed.image_url or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
+        source_feed.image_url = feed_data.feed.image.href
 
-            try:
-                source_feed.description = f.feed.description
-            except Exception:
-                pass
+    # either of these is fine, prefer description over summary
+    # also feedparser will give us itunes:summary etc if there
+    if not source_feed.description or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
+        source_feed.description = feed_data.feed.summary
+        source_feed.description = feed_data.feed.description
 
-            try:
-                source_feed.save(update_fields=["description"])
-            except Exception:
-                pass
+    source_feed.save()
 
-        #output.write(entries)
-        entries.reverse() # Entries are typically in reverse chronological order - put them in right order
-        for entry in entries:
+    #output.write(entries)
+    entries.reverse() # Entries are typically in reverse chronological order - put them in right order
+    for entry in entries:
+        parse_entry_xml(source_feed, entry)
 
+
+def parse_entry_xml(source_feed, entry_data):
             # we are going to take the longest
             body = ""
 
@@ -521,23 +465,23 @@ def parse_feed_xml(source_feed, feed_content, output):
                     guid = md5.hexdigest()
 
             try:
-                post  = Post.objects.filter(source=source_feed).filter(guid=guid)[0]
-                output.write("EXISTING " + guid + "\n")
+                post  = Entry.objects.filter(source=source_feed).filter(guid=guid)[0]
+                logger.info("EXISTING %s", guid)
 
             except Exception:
-                output.write("NEW " + guid + "\n")
-                post = Post(index=0, body=" ", title="", guid=guid)
+                logger.info("NEW %s", guid)
+                post = Entry(index=0, body=" ", title="", guid=guid)
                 post.found = timezone.now()
                 changed = True
 
 
                 try:
-                    post.created  = datetime.datetime.fromtimestamp(time.mktime(entry.published_parsed)).replace(tzinfo=timezone.utc)
+                    post.created  = datetime.datetime.fromtimestamp(time.mktime(entry.published_parsed))
                 except Exception:
                     try:
-                        post.created  = datetime.datetime.fromtimestamp(time.mktime(entry.updated_parsed)).replace(tzinfo=timezone.utc)
-                    except Exception as ex:
-                        output.write("CREATED ERROR:" + str(ex))
+                        post.created  = datetime.datetime.fromtimestamp(time.mktime(entry.updated_parsed))
+                    except Exception:
+                        logger.exception("CREATED ERROR")
                         post.created  = timezone.now()
 
                 post.source = source_feed
@@ -546,14 +490,14 @@ def parse_feed_xml(source_feed, feed_content, output):
             try:
                 post.title = entry.title
                 post.save(update_fields=["title"])
-            except Exception as ex:
-                output.write("Title error:" + str(ex))
+            except Exception:
+                logger.exception("Title error")
 
             try:
                 post.link = entry.link
                 post.save(update_fields=["link"])
-            except Exception as ex:
-                output.write("Link error:" + str(ex))
+            except Exception:
+                logger.exception("Link error")
 
             try:
                 post.image_url = entry.image.href
@@ -564,16 +508,16 @@ def parse_feed_xml(source_feed, feed_content, output):
             try:
                 post.author = entry.author
                 post.save(update_fields=["author"])
-            except Exception as ex:
+            except Exception:
+                logger.exception('Author error')
                 post.author = ""
 
             try:
                 post.body = body
                 post.save(update_fields=["body"])
                 # output.write(p.body)
-            except Exception as ex:
-                output.write(str(ex))
-                output.write(post.body)
+            except Exception:
+                logger.exception('Body Error')
 
             try:
                 seen_files = []
@@ -616,11 +560,11 @@ def parse_feed_xml(source_feed, feed_content, output):
                                 enclosure.length = 0
 
                             try:
-                                type = post_file["type"]
+                                file_type = post_file["type"]
                             except Exception:
-                                type = "audio/mpeg"  # we are assuming podcasts here but that's probably not safe
+                                file_type = "audio/mpeg"  # we are assuming podcasts here but that's probably not safe
 
-                            enclosure.type = type
+                            enclosure.type = file_type
 
                             if "medium" in post_file:
                                 enclosure.medium = post_file["medium"]
@@ -649,15 +593,15 @@ def parse_feed_xml(source_feed, feed_content, output):
 
                             try:
                                 length = int(post_file[length])
-                            except:
+                            except Exception:
                                 length = 0
 
                             try:
-                                type = post_file["type"]
-                            except:
-                                type = "audio/mpeg"
+                                file_type = post_file["type"]
+                            except Exception:
+                                file_type = "audio/mpeg"
 
-                            enclosure = Enclosure(post=post, href=post_file[href], length=length, type=type)
+                            enclosure = Enclosure(post=post, href=post_file[href], length=length, type=file_type)
 
                             if "medium" in post_file:
                                 enclosure.medium = post_file["medium"]
@@ -666,11 +610,11 @@ def parse_feed_xml(source_feed, feed_content, output):
                                 enclosure.description = post_file["description"][:512]
 
                             enclosure.save()
-                    except Exception as ex:
+                    except Exception:
                         pass
 
-            except Exception as ex:
-                output.write("No enclosures - " + str(ex))
+            except Exception:
+                logger.exception("No enclosures")
 
     if is_first and source_feed.posts.all().count() > 0:
         # If this is the first time we have parsed this
@@ -680,20 +624,20 @@ def parse_feed_xml(source_feed, feed_content, output):
         keep_going = True
         while keep_going:
             keep_going = False  # assume were stopping unless we find a next link
-            if hasattr(f.feed, 'links'):
-                for link in f.feed.links:
+            if hasattr(feed_data.feed, 'links'):
+                for link in feed_data.feed.links:
                     if 'rel' in link and link['rel'] == "next":
                         ret = requests.get(link['href'], headers=headers, verify=False, allow_redirects=True, timeout=20)
-                        (pok, pchanged) = parse_feed_xml(source_feed, ret.content, output)
+                        (pok, pchanged) = parse_feed_xml(source_feed, ret.content)
                         # print(link['href'])
                         # print((pok, pchanged))
-                        f = parser.parse(ret.content)  # rebase the loop on this feed version
+                        feed_data = feedparser.parse(ret.content)  # rebase the loop on this feed version
                         keep_going = True
 
     return (ok,changed)
 
 
-def parse_feed_json(source_feed: Source, feed_content, output) -> tuple[bool, bool]:
+def parse_feed_json(source_feed: Source, feed_content) -> tuple[bool, bool]:
 
     ok = True
     changed = False
@@ -728,7 +672,7 @@ def parse_feed_json(source_feed: Source, feed_content, output) -> tuple[bool, bo
 
         if not source_feed.name or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
             try:
-                source_feed.name = parser.sanitizer._sanitize_html(content['title'], "utf-8", 'text/html')
+                source_feed.name = feedparser.sanitizer._sanitize_html(content['title'], "utf-8", 'text/html')
                 source_feed.save(update_fields=["name"])
             except Exception:
                 pass
@@ -743,8 +687,7 @@ def parse_feed_json(source_feed: Source, feed_content, output) -> tuple[bool, bo
         if not source_feed.description or FEEDS_FORCE_UPDATE_SOURCE_FIELDS:
             try:
                 if "description" in content:
-                    _customize_sanitizer(parser)
-                    source_feed.description = parser.sanitizer._sanitize_html(content["description"], "utf-8", 'text/html')
+                    source_feed.description = feedparser.sanitizer._sanitize_html(content["description"], "utf-8", 'text/html')
                     source_feed.save(update_fields=["description"])
             except Exception:
                 pass
@@ -779,12 +722,12 @@ def parse_feed_json(source_feed: Source, feed_content, output) -> tuple[bool, bo
                     guid = md5.hexdigest()
 
             try:
-                post  = Post.objects.filter(source=source_feed).filter(guid=guid)[0]
-                output.write("EXISTING " + guid + "\n")
+                post  = Entry.objects.filter(source=source_feed).filter(guid=guid)[0]
+                logger.info("EXISTING %s", guid)
 
             except Exception:
-                output.write("NEW " + guid + "\n")
-                post = Post(index=0, body=' ')
+                logger.info("NEW %s", guid)
+                post = Entry(index=0, body=' ')
                 post.found = timezone.now()
                 changed = True
                 post.source = source_feed
@@ -795,10 +738,8 @@ def parse_feed_json(source_feed: Source, feed_content, output) -> tuple[bool, bo
                 title = ""
 
             # borrow the RSS parser's sanitizer
-            _customize_sanitizer(parser)
-            body = parser.sanitizer._sanitize_html(body, "utf-8", 'text/html') # TODO: validate charset ??
-            _customize_sanitizer(parser)
-            title = parser.sanitizer._sanitize_html(title, "utf-8", 'text/html') # TODO: validate charset ??
+            body = feedparser.sanitizer._sanitize_html(body, "utf-8", 'text/html') # TODO: validate charset ??
+            title = feedparser.sanitizer._sanitize_html(title, "utf-8", 'text/html') # TODO: validate charset ??
             # no other fields are ever marked as |safe in the templates
 
             if "banner_image" in entry:
@@ -809,21 +750,23 @@ def parse_feed_json(source_feed: Source, feed_content, output) -> tuple[bool, bo
 
             try:
                 post.link = entry["url"]
-            except Exception as ex:
+            except Exception:
+                logger.exception('Link Error')
                 post.link = ''
 
             post.title = title
 
             try:
                 post.created  = pyrfc3339.parse(entry["date_published"])
-            except Exception as ex:
-                output.write("CREATED ERROR")
+            except Exception:
+                logger.exception("CREATED ERROR")
                 post.created  = timezone.now()
 
             post.guid = guid
             try:
                 post.author = entry["author"]
-            except Exception as ex:
+            except Exception:
+                logger.exception('Author Error')
                 post.author = ""
 
             post.save()
@@ -877,24 +820,22 @@ def parse_feed_json(source_feed: Source, feed_content, output) -> tuple[bool, bo
                         except Exception:
                             pass
 
-            except Exception as ex:
-                if output:
-                    output.write("No enclosures - " + str(ex))
+            except Exception:
+                logger.exception('')
 
             try:
                 post.body = body
                 post.save()
                 # output.write(p.body)
 
-            except Exception as ex:
-                output.write(str(ex))
-                output.write(post.body)
+            except Exception:
+                logger.exception('')
 
     return (ok,changed)
 
 
 
-def test_feed(source, cache=False, output=NullOutput()):
+def test_feed(source, cache=False):
 
     headers = { "User-Agent": get_agent(source)  } #identify ourselves and also stop our requests getting picked up by any cache
 
@@ -907,37 +848,33 @@ def test_feed(source, cache=False, output=NullOutput()):
         headers["Cache-Control"] = "no-cache,max-age=0"
         headers["Pragma"] = "no-cache"
 
-    output.write("\n" + str(headers))
+    logger.info(str(headers))
 
     ret = requests.get(source.feed_url, headers=headers, allow_redirects=False, verify=False, timeout=20)
 
-    output.write("\n\n")
+    logger.info(str(ret))
 
-    output.write(str(ret))
-
-    output.write("\n\n")
-
-    output.write(ret.text)
+    logger.info(ret.text)
 
 
 
-def get_proxy(out=NullOutput()):
+def get_proxy():
 
     proxy = WebProxy.objects.first()
 
     if proxy is None:
-        find_proxies(out)
+        find_proxies()
         proxy = WebProxy.objects.first()
 
-    out.write("Proxy: %s", proxy)
+    logger.info("Proxy: %s", proxy)
 
     return proxy
 
 
 
-def find_proxies(out=NullOutput()):
+def find_proxies():
 
-    out.write("\nLooking for proxies\n")
+    logger.info("Looking for proxies")
 
     try:
         req = requests.get("https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list.txt", timeout=30)
@@ -954,13 +891,12 @@ def find_proxies(out=NullOutput()):
                     item = item.split(" ")[0]
                     WebProxy(address=item).save()
 
-    except Exception as ex:
-        logging.error("Proxy scrape error: %s", ex)
-        out.write("Proxy scrape error: %s\n", ex)
+    except Exception:
+        logging.exception("Proxy scrape error")
 
     if WebProxy.objects.count() == 0:
         # something went wrong.
         # to stop infinite loops we will insert duff proxys now
-        for i in range(20):
+        for _ in range(20):
             WebProxy(address="X").save()
-        out.write("No proxies found.\n")
+        logger.info("No proxies found.")

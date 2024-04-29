@@ -1,7 +1,3 @@
-
-
-
-
 from django.conf import settings
 
 __all__ = []
@@ -24,4 +20,3 @@ for key, value in _DEFAULTS.items():
         setattr(settings, key, value)
     except ImportError:
         pass
-        

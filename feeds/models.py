@@ -25,13 +25,18 @@ class Source(models.Model):
     """
     This is an actual feed that we poll
     """
+    # fields from feed parser
     name          = models.CharField(max_length=255, blank=True, null=True)
-    site_url      = models.CharField(max_length=255, blank=True, null=True)
-    feed_url      = models.CharField(max_length=512)
-    image_url     = models.CharField(max_length=512, blank=True, null=True)
+    title         = models.CharField(max_length=255, blank=True, null=True)
+    subtitle      = models.CharField(max_length=255, blank=True, null=True)
+    site_url      = models.URLField(max_length=255, blank=True, null=True) # link
+    feed_url      = models.URLField(max_length=512, unique=True) # href
+    image_url     = models.URLField(max_length=512, blank=True, null=True) # image.href
+    icon_url      = models.URLField(max_length=512, blank=True, null=True) # icon
+    author        = models.CharField(max_length=255, blank=True, null=True) # author
+    description   = models.TextField(null=True, blank=True) # info
 
-    description   = models.TextField(null=True, blank=True)
-
+    # due tracking
     last_polled   = models.DateTimeField(blank=True, null=True)
     due_poll      = models.DateTimeField(default=datetime.datetime(1900, 1, 1)) # default to distant past to put new sources to front of queue
     etag          = models.CharField(max_length=255, blank=True, null=True)
@@ -72,62 +77,20 @@ class Source(models.Model):
         return self.name
 
 
-    @property
-    def garden_style(self) -> str:
-        """garden style css"""
 
-        if not self.live:
-            return "background-color:#ccc;"
-
-        if self.last_change is None or self.last_success is None:
-            return "background-color:#D00;color:white"
-
-        dd = datetime.datetime.utcnow() - self.last_change
-
-        days = int (dd.days / 2)
-        col = max(255 - days, 0)
-
-        css = f"background-color:#ff{col:02x}{col:02x}"
-
-        if col < 128:
-            css += ";color:white"
-
-        return css
-
-
-    @property
-    def health_box(self) -> str:
-        """health box css"""
-
-        if not self.live:
-            return "#ccc;"
-
-        if self.last_change is None or self.last_success is None:
-            return "#F00;"
-
-        dd = datetime.datetime.utcnow() - self.last_change
-
-        days = int(dd.days / 2)
-        red = min(days, 255)
-        green = max(0, 255 - days)
-
-        return f"#{red:02x}{green:02x}00"
-
-
-
-class Post(models.Model):
+class Entry(models.Model):
     """an entry in a feed"""
-
-    source        = models.ForeignKey(Source, on_delete=models.CASCADE, related_name='posts')
+    # fields from feed
+    source        = models.ForeignKey(Source, on_delete=models.CASCADE, related_name='entries')
     title         = models.TextField(blank=True)
-    body          = models.TextField()
+    body          = models.TextField() # content
     link          = models.CharField(max_length=512, blank=True, null=True)
-    found         = models.DateTimeField(auto_now_add=True)
-    created       = models.DateTimeField(db_index=True)
-    guid          = models.CharField(max_length=512, blank=True, null=True, db_index=True)
+    created       = models.DateTimeField(db_index=True, auto_now_add=True)
+    guid          = models.CharField(max_length=512, blank=True, null=True, db_index=True) # id
     author        = models.CharField(max_length=255, blank=True, null=True)
-    index         = models.IntegerField(db_index=True)
-    image_url     = models.CharField(max_length=512, blank=True,null=True)
+    image_url     = models.CharField(max_length=512, blank=True, null=True)
+    # tracking
+    found         = models.DateTimeField(auto_now_add=True)
 
 
     @property
@@ -148,11 +111,7 @@ class Post(models.Model):
 
 
     def __str__(self):
-        return f"{self.source.display_name}: post {self.index}, {self.title}"
-
-
-    class Meta:
-        ordering = ["index"]
+        return f"{self.source.display_name}: post {self.title}"
 
 
 
@@ -160,8 +119,7 @@ class Enclosure(models.Model):
     """
     What podcasts use to send their audio
     """
-
-    post   = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='enclosures')
+    post   = models.ForeignKey(Entry, on_delete=models.CASCADE, related_name='enclosures')
     length = models.IntegerField(default=0)
     href   = models.CharField(max_length=512)
     type   = models.CharField(max_length=256)

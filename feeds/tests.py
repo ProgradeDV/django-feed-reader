@@ -2,7 +2,7 @@ from django.test import TestCase, Client
 from django.conf import settings
 
 # Create your tests here.
-from feeds.models import Source, Post, Enclosure, WebProxy
+from feeds.models import Source, Entry, Enclosure, WebProxy
 from feeds.utils import read_feed, find_proxies, get_proxy, fix_relative
 
 from django.utils import timezone

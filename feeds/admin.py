@@ -45,7 +45,7 @@ class PostAdmin(admin.ModelAdmin):
         'enclosures_link',
     )
 
-    def enclosures_link(self, post: models.Post) -> str:
+    def enclosures_link(self, post: models.Entry) -> str:
         """
         Returns an html link to the given posts enclosures
         """
@@ -71,6 +71,6 @@ class EnclosureAdmin(admin.ModelAdmin):
 
 
 admin.site.register(models.Source, SourceAdmin)
-admin.site.register(models.Post, PostAdmin)
+admin.site.register(models.Entry, PostAdmin)
 admin.site.register(models.Enclosure, EnclosureAdmin)
 admin.site.register(models.WebProxy)
