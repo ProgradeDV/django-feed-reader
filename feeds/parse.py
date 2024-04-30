@@ -1,8 +1,7 @@
 """
-Functions for querying and decoding rss feeds using feedparser
+Functions for updating feeds
 """
 import logging
-from datetime import datetime
 import feedparser
 from .models import Source, Entry, Enclosure
 from .fetch import query_source
@@ -17,24 +16,35 @@ SOURCE_FIELD_KEYS = {
     'subtitle': ('subtitle',),
     'site_url': ('href',),
     'image_url': tuple(),
+    'icon_url': tuple(),
     'author': tuple(),
     'description': tuple(),
 }
 
 ENTRY_FIELD_KEYS = {
-    'guid':('id',),
     'title':('title',),
+    'body':('content', 'summary'),
     'link':('link',),
     'created':('created','published'),
+    'guid':('id',),
     'author':('author',),
-    'body':('content', 'summary'),
     'image_url':('media_thumbnail',)
 }
 
 
-def tree_atribute(data, *paths):
+def tree_atribute(parser_data: feedparser.util.FeedParserDict, *paths):
+    """
+    follow a tree of attributes to attempt to find a value
+
+    ### Parameters
+    - parser_data (FeedParserDict): the data retrieved from the source
+    - paths: all the posible paths to go down.
+
+    ### Returns
+    the value or None
+    """
     for path in paths:
-        value = data
+        value = parser_data
 
         for key in path.split('.'):
             value = getattr(value, key, None)
@@ -43,38 +53,17 @@ def tree_atribute(data, *paths):
             return value
 
 
-def pull_sources(sources: list[Source]):
-    """
-    Update all of the given sources
 
-    ### Parameters
-    - sources (list): a list of sources to update
-    """
-    logger.info('Updating %s sources', len(sources))
-    for source in sources:
-        pull_source(source)
-
-
-def pull_source(source: Source):
+def update_source(source: Source, parser_data: feedparser.util.FeedParserDict):
     """
     Update the data for the source.
 
     ### Parameters
     - source (Source): the source object to update
     """
-    logger.info('Updating Source: %s', Source)
     try:
-        data = query_source(source.feed_url)
-
-    except Exception as exc:
-        logger.exception('Failed to request source: %s', source.feed_url)
-        source.last_result = str(exc)
-        source.save()
-        return
-
-    try:
-        update_source_fields(source, data.feed)
-        update_entries(source, data.entries)
+        update_source_fields(source, parser_data.feed)
+        update_entries(source, parser_data.entries)
 
     except Exception as exc:
         logger.exception('Failed to parse source: %s', source.feed_url)

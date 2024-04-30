@@ -1,5 +1,5 @@
 """
-Fetch the feed date
+Fetch the feed data
 """
 import feedparser
 
@@ -12,6 +12,6 @@ def query_source(url: str) -> feedparser.util.FeedParserDict:
     - url: string url of the feed
 
     ### Returns
-    - feed data
+    - FeedParserDict: feed data
     """
     return feedparser.parse(url)
