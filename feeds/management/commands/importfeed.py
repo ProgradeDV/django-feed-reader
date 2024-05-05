@@ -4,7 +4,7 @@ Django Command to import a feed source
 import logging
 from django.core.management.base import BaseCommand, CommandError
 from feeds.models import Source
-from feeds.parse import update_source
+from feeds.feed_updates.parse import update_source
 
 logger = logging.getLogger('ImportFeed')
 

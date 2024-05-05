@@ -3,7 +3,7 @@ Functions for updating feeds
 """
 import logging
 import feedparser
-from .models import Source, Entry, Enclosure
+from ..models import Source, Entry, Enclosure
 from .fetch import query_source
 
 logger = logging.getLogger('UpdateSources')
@@ -51,6 +51,8 @@ def tree_atribute(parser_data: feedparser.util.FeedParserDict, *paths):
 
         if value is not None:
             return value
+
+    return None
 
 
 

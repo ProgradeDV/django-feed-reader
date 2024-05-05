@@ -30,7 +30,7 @@ class Command(BaseCommand):
         else:
             raise CommandError('must supply either --name or --url')
 
-        for key in ['name', 'title', 'subtitle', 'site_url', 'feed_url', 'image_url', 'icon_url', 'author', 'description']:
+        for key in ['name', 'title', 'subtitle', 'last_polled', 'due_poll', 'site_url', 'feed_url', 'image_url', 'icon_url', 'author', 'description']:
             value = getattr(source, key, None)
             self.stdout.write(f"{key:<11} = {value}")
 
