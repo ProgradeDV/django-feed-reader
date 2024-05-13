@@ -19,10 +19,12 @@ def update_feed(source: Source):
     ### Parameters
     - source: the Source object for the feed to update
     """
-    print('updating_feed')
+    logger.info('Updating Feed %s', source)
     feed_data = query_source(source.feed_url)
     update_source(source, feed_data)
     set_due_poll(source)
+
+    logger.debug('due poll set to %s', source.due_poll)
 
     source.last_polled = datetime.now(tz=ZoneInfo('UTC'))
 

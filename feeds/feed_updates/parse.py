@@ -3,8 +3,7 @@ Functions for updating feeds
 """
 import logging
 import feedparser
-from ..models import Source, Entry, Enclosure
-from .fetch import query_source
+from feeds.models import Source, Entry, Enclosure
 
 logger = logging.getLogger('UpdateSources')
 
@@ -107,7 +106,7 @@ def get_or_create_entry(source: Source, entry_data: feedparser.util.FeedParserDi
     - source (Source): the source instance we're creating entried for
     - entry_data (FeedParserDict): the raw data parsed from the fetch operation
     """
-    print(entry_data.media_thumbnail)
+    # print(entry_data.media_thumbnail)
     try:
         entry = Entry.objects.get(source=source, guid=entry_data.id)
 

@@ -1,8 +1,8 @@
-
+"""
+CLI for fetching and updating a feed
+"""
 import logging
-from datetime import datetime
 from django.core.management.base import BaseCommand, CommandError
-from django.db.models import Q
 
 from feeds.models import Source
 from feeds.feed_updates import update_feed
@@ -47,8 +47,6 @@ class Command(BaseCommand):
 
         if options['max']:
             sources = sources[:options['max']]
-        
-        print(sources)
 
         for source in sources:
             update_feed(source)
