@@ -1,7 +1,7 @@
 """
 This module contins the functions that predict when the next feed entry will be posted based on past performance
 """
-from statistics import stdev, median
+from statistics import stdev, median, mean
 from datetime import datetime, timedelta, time, date
 from zoneinfo import ZoneInfo
 from django.db.models import Q
@@ -56,11 +56,50 @@ def predict_time(entries: list[Entry]) -> tuple[time, timedelta]:
     """
     # convert all created times to seconds since midnight
     seconds = [delta_since_midnight(entry.created) for entry in entries]
-    std_dev = timedelta(seconds=stdev(seconds))
+    mean_value, deviation = circled_mean(seconds, 0, 86400)
 
-    predicted_time = (datetime.min + timedelta(seconds=median(seconds))).time()
+    deviation_dt = timedelta(seconds=deviation)
+    predicted_time = (datetime.min + timedelta(seconds=mean_value)).time()
 
-    return predicted_time, std_dev
+    return predicted_time, deviation_dt
+
+
+
+def circled_mean(data: list, min_value, max_value) -> tuple:
+    """
+    Find the mean of data that wraps around
+
+    ### Parameters
+    - data (list): the data to find the mean of
+    - min: the minimum value
+    - max: the maximum value
+
+    ### Returns
+    - the average
+    - the standard deviation
+    """
+    middle = (min_value + max_value)/2
+    gap = max_value - min_value
+    sorted_data = sorted(data)
+
+    for i, value in enumerate(sorted_data):
+        if value >= middle:
+            break
+
+    base_mean = mean(data)
+    base_dev = stdev(data, base_mean)
+
+    swapped_data = sorted_data[i:] + [gap + value for value in sorted_data[:i]]
+    swapped_mean = mean(swapped_data)
+    swapped_dev = stdev(swapped_data, swapped_mean)
+
+    if swapped_dev < base_dev:
+        if swapped_mean >= max_value:
+            swapped_mean -= gap
+        return swapped_mean, swapped_dev
+
+    return base_mean, base_dev
+
 
 
 def delta_since_midnight(date_time: datetime) -> float:
@@ -74,6 +113,7 @@ def delta_since_midnight(date_time: datetime) -> float:
     - float: the total seconds sonce midnight
     """
     return (date_time - datetime.combine(date_time.date(), time.min, tzinfo=date_time.tzinfo)).total_seconds()
+
 
 
 def predict_day(entries: list[Entry]) -> date:
@@ -104,6 +144,7 @@ def predict_day(entries: list[Entry]) -> date:
             return date.today() + timedelta(days=i)
 
     return date.today() + timedelta(days=1)
+
 
 
 def due_sources() -> list:
