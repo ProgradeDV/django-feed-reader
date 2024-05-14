@@ -72,9 +72,11 @@ class Source(models.Model):
     @property
     def display_name(self) -> str:
         """The name to render"""
-        if not self.name:
-            return self.best_link
-        return self.name
+        if self.name:
+            return self.name
+        if self.title:
+            return self.title
+        return self.best_link
 
 
 
