@@ -1,4 +1,0 @@
-sgmllib3k
-feedparser
-requests
-pyrfc3339

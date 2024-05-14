@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools >= 58.0", "wheel", "Cython >= 0.29.0"]
+
+[project]
+name = "django_feed_reader"
+version = "2.0.0"
+description = "An RSS feed reading library for Django."
+authors = [
+  {name = "Tim Polnow", email = "me@timin8er.com"},
+]
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    'Django',
+    'requests',
+    'feedparser',
+    'beautifulsoup4',
+    ]
