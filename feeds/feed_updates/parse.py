@@ -27,7 +27,7 @@ ENTRY_FIELD_KEYS = {
     'created':('created','published'),
     'guid':('id',),
     'author':('author',),
-    'image_url':('media_thumbnail',)
+    'image_url':('media_thumbnail.0.url',)
 }
 
 
@@ -46,9 +46,27 @@ def tree_atribute(parser_data: feedparser.util.FeedParserDict, *paths):
         value = parser_data
 
         for key in path.split('.'):
-            value = getattr(value, key, None)
+            if isinstance(value, list):
+                try:
+                    value = value[int(key)]
+                except Exception:
+                    break
 
-        if value is not None:
+            elif isinstance(value, dict):
+                try:
+                    value = value[key]
+                except Exception:
+                    break
+
+            else:
+                try:
+                    value = getattr(value, key)
+                except Exception:
+                    break
+
+        else: # no break
+            if value is None:
+                continue
             return value
 
     return None
@@ -106,7 +124,6 @@ def get_or_create_entry(source: Source, entry_data: feedparser.util.FeedParserDi
     - source (Source): the source instance we're creating entried for
     - entry_data (FeedParserDict): the raw data parsed from the fetch operation
     """
-    # print(entry_data.media_thumbnail)
     try:
         entry = Entry.objects.get(source=source, guid=entry_data.id)
 
