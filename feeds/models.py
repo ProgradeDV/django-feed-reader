@@ -39,22 +39,22 @@ class Source(models.Model):
     # due tracking
     last_polled   = models.DateTimeField(blank=True, null=True)
     due_poll      = models.DateTimeField(default=datetime.datetime(1900, 1, 1)) # default to distant past to put new sources to front of queue
-    etag          = models.CharField(max_length=255, blank=True, null=True)
-    last_modified = models.CharField(max_length=255, blank=True, null=True) # just pass this back and forward between server and me , no need to parse
 
+    # feedparser tracking
+    etag          = models.CharField(max_length=255, blank=True, null=True)
+    last_modified = models.CharField(max_length=255, blank=True, null=True)
     last_result    = models.CharField(max_length=255,blank=True,null=True)
-    interval       = models.PositiveIntegerField(default=400)
+    status_code    = models.PositiveIntegerField(default=0)
+    live           = models.BooleanField(default=True)
+
+    # interval       = models.PositiveIntegerField(default=400)
     last_success   = models.DateTimeField(blank=True, null=True)
     last_change    = models.DateTimeField(blank=True, null=True)
-    live           = models.BooleanField(default=True)
-    status_code    = models.PositiveIntegerField(default=0)
-    last_302_url   = models.CharField(max_length=512, null=True, blank=True)
-    last_302_start = models.DateTimeField(null=True, blank=True)
 
     max_index      = models.IntegerField(default=0)
     num_subs       = models.IntegerField(default=1)
 
-    is_cloudflare  = models.BooleanField(default=False)
+    # is_cloudflare  = models.BooleanField(default=False)
 
 
     def __str__(self):
