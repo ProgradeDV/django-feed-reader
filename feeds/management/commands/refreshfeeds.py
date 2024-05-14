@@ -34,11 +34,11 @@ class Command(BaseCommand):
             sources = Source.objects.all()
 
         elif options['name']:
-            logger.info('Updating feed: %s', options['name'])
+            logger.info('Updating feed by name: %s', options['name'])
             sources = Source.objects.all().filter(name=options['name'])
 
         elif options['url']:
-            logger.info('Updating feed: %s', options['url'])
+            logger.info('Updating feed by url: %s', options['url'])
             sources = Source.objects.all().filter(feed_url=options['url'])
 
         else:
