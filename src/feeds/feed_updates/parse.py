@@ -15,8 +15,8 @@ SOURCE_FIELD_KEYS = {
     'subtitle': ('subtitle',),
     'site_url': ('href',),
     'image_url': tuple(),
-    'icon_url': tuple(),
-    'author': tuple(),
+    'icon_url': ('icon',),
+    'author': ('author',),
     'description': tuple(),
 }
 
@@ -104,15 +104,15 @@ def update_source_fields(source: Source, parser_data: feedparser.util.FeedParser
         setattr(source, field_name, tree_atribute(parser_data, *paths))
 
 
-def update_entries(source: Source, parser_data: feedparser.util.FeedParserDict):
+def update_entries(source: Source, entries_data: feedparser.util.FeedParserDict):
     """
     Create any new entries for a source
 
     ### Parameters
     - source (Source): the source instance we're creating entried for
-    - parser_data (FeedParserDict): the raw data parsed from the fetch operation
+    - entries_data (FeedParserDict): the raw data parsed from the fetch operation
     """
-    for entry_data in parser_data:
+    for entry_data in entries_data:
         get_or_create_entry(source, entry_data)
 
 
