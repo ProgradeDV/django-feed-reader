@@ -2,6 +2,7 @@
 Functions for updating feeds
 """
 import logging
+from time import struct_time, strftime
 import feedparser
 from feeds.models import Source, Entry, Enclosure
 
@@ -15,7 +16,7 @@ SOURCE_FIELD_KEYS = {
     'subtitle': ('subtitle',),
     'site_url': ('href',),
     'image_url': tuple(),
-    'icon_url': ('icon',),
+    'icon_url': ('image','logo','icon'),
     'author': ('author',),
     'description': tuple(),
 }
@@ -24,7 +25,7 @@ ENTRY_FIELD_KEYS = {
     'title':('title',),
     'body':('content', 'summary'),
     'link':('link',),
-    'created':('created','published'),
+    'created':('updated_parsed', 'published_parsed', 'created_parsed', 'updated', 'published', 'created'),
     'guid':('id',),
     'author':('author',),
     'image_url':('media_thumbnail.0.url',)
@@ -101,7 +102,11 @@ def update_source_fields(source: Source, parser_data: feedparser.util.FeedParser
     """
     # for each field, attempt each known path to get to the data
     for field_name, paths in SOURCE_FIELD_KEYS.items():
-        setattr(source, field_name, tree_atribute(parser_data, *paths))
+        value = tree_atribute(parser_data, *paths)
+        if isinstance(value, struct_time):
+            value = strftime('%Y-%m-%dT%H:%M:%SZ', value)
+
+        setattr(source, field_name, value)
 
 
 def update_entries(source: Source, entries_data: feedparser.util.FeedParserDict):
@@ -113,7 +118,8 @@ def update_entries(source: Source, entries_data: feedparser.util.FeedParserDict)
     - entries_data (FeedParserDict): the raw data parsed from the fetch operation
     """
     for entry_data in entries_data:
-        get_or_create_entry(source, entry_data)
+        entry = get_or_create_entry(source, entry_data)
+        update_enclosures(entry, entry_data)
 
 
 def get_or_create_entry(source: Source, entry_data: feedparser.util.FeedParserDict):
@@ -132,6 +138,8 @@ def get_or_create_entry(source: Source, entry_data: feedparser.util.FeedParserDi
 
     for field_name, paths in ENTRY_FIELD_KEYS.items():
         value = tree_atribute(entry_data, *paths)
+        if isinstance(value, struct_time):
+            value = strftime('%Y-%m-%dT%H:%M:%SZ', value)
         setattr(entry, field_name, value)
 
     if isinstance(entry.image_url, list) and entry.image_url:
