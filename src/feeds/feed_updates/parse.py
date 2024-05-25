@@ -138,3 +138,32 @@ def get_or_create_entry(source: Source, entry_data: feedparser.util.FeedParserDi
         entry.image_url = entry.image_url[0].get('url', None)
 
     entry.save()
+    return entry
+
+
+def update_enclosures(entry: Entry, entry_data: feedparser.util.FeedParserDict):
+    """
+    Create enclosures for the given entry
+
+    ### Parameters
+    - entry (Entry): the netry to update
+    - encloure_data (FeedParserDict): the data to parse into enclosures
+    """
+    # delete enclosures that don't exist
+    entry.enclosures.all().delete()
+
+    if entry_data.link.startswith('https://www.youtube.com'):
+        enclosure = Enclosure.objects.create(
+            post = entry,
+            length = 0,
+            href = 'https://www.youtube.com/embed/' + entry_data.link.split('?v=')[1],
+            type = 'youtube',
+        )
+
+    for enclosure_data in entry_data.enclosures:
+        enclosure = Enclosure.objects.create(
+            post = entry,
+            length = enclosure_data.get('length', 0),
+            href = enclosure_data.get('href', ''),
+            type = enclosure_data.get('type', ''),
+        )
