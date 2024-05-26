@@ -28,7 +28,7 @@ class Source(models.Model):
     # fields from feed parser
     name          = models.CharField(max_length=255, blank=True, null=True)
     title         = models.CharField(max_length=255, blank=True, null=True)
-    subtitle      = models.CharField(max_length=255, blank=True, null=True)
+    subtitle      = models.TextField(max_length=255, blank=True, null=True)
     site_url      = models.URLField(max_length=255, blank=True, null=True) # link
     feed_url      = models.URLField(max_length=512, unique=True) # href
     image_url     = models.URLField(max_length=512, blank=True, null=True) # image.href
