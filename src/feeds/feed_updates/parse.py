@@ -15,10 +15,10 @@ SOURCE_FIELD_KEYS = {
     'title': ('title',),
     'subtitle': ('subtitle',),
     'site_url': ('href',),
-    'image_url': tuple(),
-    'icon_url': ('image','logo','icon'),
+    'image_url': ('image.href', 'img'),
+    'icon_url': ('logo','icon', 'facicon'),
     'author': ('author',),
-    'description': tuple(),
+    'description': ('description'),
 }
 
 ENTRY_FIELD_KEYS = {
@@ -28,9 +28,8 @@ ENTRY_FIELD_KEYS = {
     'created':('updated_parsed', 'published_parsed', 'created_parsed', 'updated', 'published', 'created'),
     'guid':('id',),
     'author':('author',),
-    'image_url':('media_thumbnail.0.url',)
+    'image_url':('image.href', 'image', 'media_thumbnail.0.url')
 }
-
 
 def tree_atribute(parser_data: feedparser.util.FeedParserDict, *paths):
     """
@@ -103,6 +102,9 @@ def update_source_fields(source: Source, parser_data: feedparser.util.FeedParser
     # for each field, attempt each known path to get to the data
     for field_name, paths in SOURCE_FIELD_KEYS.items():
         value = tree_atribute(parser_data, *paths)
+        if value is None:
+            continue
+
         if isinstance(value, struct_time):
             value = strftime('%Y-%m-%dT%H:%M:%SZ', value)
 
@@ -138,8 +140,12 @@ def get_or_create_entry(source: Source, entry_data: feedparser.util.FeedParserDi
 
     for field_name, paths in ENTRY_FIELD_KEYS.items():
         value = tree_atribute(entry_data, *paths)
+        if value is None:
+            continue
+
         if isinstance(value, struct_time):
             value = strftime('%Y-%m-%dT%H:%M:%SZ', value)
+
         setattr(entry, field_name, value)
 
     if isinstance(entry.image_url, list) and entry.image_url:
@@ -160,7 +166,7 @@ def update_enclosures(entry: Entry, entry_data: feedparser.util.FeedParserDict):
     # delete enclosures that don't exist
     entry.enclosures.all().delete()
 
-    if entry_data.link.startswith('https://www.youtube.com'):
+    if 'link' in entry_data and entry_data.link.startswith('https://www.youtube.com'):
         enclosure = Enclosure.objects.create(
             post = entry,
             length = 0,
