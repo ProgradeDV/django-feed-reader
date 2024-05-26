@@ -168,7 +168,7 @@ def update_enclosures(entry: Entry, entry_data: feedparser.util.FeedParserDict):
 
     if 'link' in entry_data and entry_data.link.startswith('https://www.youtube.com'):
         enclosure = Enclosure.objects.create(
-            post = entry,
+            entry = entry,
             length = 0,
             href = 'https://www.youtube.com/embed/' + entry_data.link.split('?v=')[1],
             type = 'youtube',
@@ -176,7 +176,7 @@ def update_enclosures(entry: Entry, entry_data: feedparser.util.FeedParserDict):
 
     for enclosure_data in entry_data.enclosures:
         enclosure = Enclosure.objects.create(
-            post = entry,
+            entry = entry,
             length = enclosure_data.get('length', 0),
             href = enclosure_data.get('href', ''),
             type = enclosure_data.get('type', ''),

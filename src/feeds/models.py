@@ -104,7 +104,7 @@ class Entry(models.Model):
             ret = urlencode({"X":self.title})
 
         except Exception: # pylint: disable=broad-exception-caught
-            logging.exception("Failed to url encode title of post %s", self.id)
+            logging.exception("Failed to url encode title of entry %s", self.id)
             return ""
 
         if len(ret) > 2:
@@ -113,7 +113,7 @@ class Entry(models.Model):
 
 
     def __str__(self):
-        return f"{self.source.display_name}: post {self.title}"
+        return f"{self.source.display_name}: Entry {self.title}"
 
 
 
@@ -121,7 +121,7 @@ class Enclosure(models.Model):
     """
     What podcasts use to send their audio
     """
-    post   = models.ForeignKey(Entry, on_delete=models.CASCADE, related_name='enclosures')
+    entry   = models.ForeignKey(Entry, on_delete=models.CASCADE, related_name='enclosures')
     length = models.IntegerField(default=0)
     href   = models.CharField(max_length=512)
     type   = models.CharField(max_length=256)

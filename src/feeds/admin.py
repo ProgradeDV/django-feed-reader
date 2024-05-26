@@ -11,30 +11,30 @@ from feeds import models
 
 class SourceAdmin(admin.ModelAdmin):
     """
-    Adds link to a sources posts to the admin panel
+    Adds link to a sources entries to the admin panel
     """
 
-    readonly_fields = ('posts_link',)
+    readonly_fields = ('entries_link',)
 
-    def posts_link(self, source: models.Source) -> str:
+    def entries_link(self, source: models.Source) -> str:
         """
-        Returns an html link string to the given sources posts
+        Returns an html link string to the given sources entries
         """
         if source.id is None:
             return ''
-        qs = source.posts.all()
+        qs = source.entries.all()
         return mark_safe(
             '<a href="%s?source__id=%i" target="_blank">%i Posts</a>' % (
-                reverse('admin:feeds_post_changelist'), source.id, qs.count()
+                reverse('admin:feeds_entry_changelist'), source.id, qs.count()
             )
         )
-    posts_link.short_description = 'posts'
+    entries_link.short_description = 'entries'
 
 
 
-class PostAdmin(admin.ModelAdmin):
+class EntryAdmin(admin.ModelAdmin):
     """
-    Adds a link to a posts enclosures to the admin panel
+    Adds a link to a entry's enclosures to the admin panel
     """
 
     raw_id_fields = ('source',)
@@ -45,16 +45,16 @@ class PostAdmin(admin.ModelAdmin):
         'enclosures_link',
     )
 
-    def enclosures_link(self, post: models.Entry) -> str:
+    def enclosures_link(self, entry: models.Entry) -> str:
         """
-        Returns an html link to the given posts enclosures
+        Returns an html link to the given entry's enclosures
         """
-        if post.id is None:
+        if entry.id is None:
             return ''
-        qs = post.enclosures.all()
+        qs = entry.enclosures.all()
         return mark_safe(
-            '<a href="%s?post__id=%i" target="_blank">%i Enclosures</a>' % (
-                reverse('admin:feeds_enclosure_changelist'), post.id, qs.count()
+            '<a href="%s?entry__id=%i" target="_blank">%i Enclosures</a>' % (
+                reverse('admin:feeds_enclosure_changelist'), entry.id, qs.count()
             )
         )
     enclosures_link.short_description = 'enclosures'
@@ -66,11 +66,11 @@ class EnclosureAdmin(admin.ModelAdmin):
     Admin panel for enclosures
     """
 
-    raw_id_fields = ('post',)
+    raw_id_fields = ('entry',)
     list_display = ('href', 'type')
 
 
 admin.site.register(models.Source, SourceAdmin)
-admin.site.register(models.Entry, PostAdmin)
+admin.site.register(models.Entry, EntryAdmin)
 admin.site.register(models.Enclosure, EnclosureAdmin)
 admin.site.register(models.WebProxy)
