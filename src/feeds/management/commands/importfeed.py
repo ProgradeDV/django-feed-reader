@@ -5,6 +5,7 @@ import logging
 from django.core.management.base import BaseCommand, CommandError
 from feeds.models import Source
 from feeds.feed_updates.parse import update_source
+from feeds.feed_updates.fetch import query_source
 
 logger = logging.getLogger('ImportFeed')
 
@@ -35,4 +36,6 @@ class Command(BaseCommand):
 
         logger.info('Import Finished')
 
-        update_source(source)
+        data = query_source(source)
+        update_source(source, data)
+        source.save()
