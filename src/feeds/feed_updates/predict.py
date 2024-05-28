@@ -45,7 +45,7 @@ def set_due_poll(source: Source) -> datetime:
 
 def predict_time(entries: list[Entry]) -> tuple[time, timedelta]:
     """
-    Predicts the time of day, and standard deviation, of the next entry
+    Predicts the time of day and standard deviation of the next entry
 
     ### Parameters
     - entries, a list of feed entries
@@ -54,6 +54,9 @@ def predict_time(entries: list[Entry]) -> tuple[time, timedelta]:
     - time: the time of day predicted
     - timedelta: the standard defiation
     """
+    if not entries:
+        return time(hour=12), timedelta(seconds=0)
+
     # convert all created times to seconds since midnight
     seconds = [delta_since_midnight(entry.created) for entry in entries]
     mean_value, deviation = circled_mean(seconds, 0, 86400)
