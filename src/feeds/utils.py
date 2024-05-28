@@ -9,7 +9,6 @@ from random import choice
 import datetime
 
 import requests
-import pyrfc3339
 import feedparser
 
 from django.db.models import Q
@@ -437,184 +436,184 @@ def parse_feed_xml(source_feed: Source, feed_content) -> tuple[bool, bool]:
 
 
 def parse_entry_xml(source_feed, entry_data):
-            # we are going to take the longest
-            body = ""
+    # we are going to take the longest
+    body = ""
 
-            if hasattr(entry, "summary"):
-                if len(entry.summary) > len(body):
-                    body = entry.summary
+    if hasattr(entry, "summary"):
+        if len(entry.summary) > len(body):
+            body = entry.summary
 
-            if hasattr(entry, "summary_detail"):
-                if len(entry.summary_detail.value) >= len(body):
-                    body = entry.summary_detail.value
+    if hasattr(entry, "summary_detail"):
+        if len(entry.summary_detail.value) >= len(body):
+            body = entry.summary_detail.value
 
-            if hasattr(entry, "description"):
-                if len(entry.description) >= len(body):
-                    body = entry.description
+    if hasattr(entry, "description"):
+        if len(entry.description) >= len(body):
+            body = entry.description
 
-            body = fix_relative(body, source_feed.site_url)
+    body = fix_relative(body, source_feed.site_url)
 
+    try:
+        guid = entry.guid
+    except Exception:
+        try:
+            guid = entry.link
+        except Exception:
+            md5 = hashlib.md5()
+            md5.update(body.encode("utf-8"))
+            guid = md5.hexdigest()
+
+    try:
+        post  = Entry.objects.filter(source=source_feed).filter(guid=guid)[0]
+        logger.info("EXISTING %s", guid)
+
+    except Exception:
+        logger.info("NEW %s", guid)
+        post = Entry(index=0, body=" ", title="", guid=guid)
+        post.found = timezone.now()
+        changed = True
+
+
+        try:
+            post.created  = datetime.datetime.fromtimestamp(time.mktime(entry.published_parsed))
+        except Exception:
             try:
-                guid = entry.guid
+                post.created  = datetime.datetime.fromtimestamp(time.mktime(entry.updated_parsed))
             except Exception:
-                try:
-                    guid = entry.link
-                except Exception:
-                    md5 = hashlib.md5()
-                    md5.update(body.encode("utf-8"))
-                    guid = md5.hexdigest()
+                logger.exception("CREATED ERROR")
+                post.created  = timezone.now()
 
-            try:
-                post  = Entry.objects.filter(source=source_feed).filter(guid=guid)[0]
-                logger.info("EXISTING %s", guid)
+        post.source = source_feed
+        post.save()
 
-            except Exception:
-                logger.info("NEW %s", guid)
-                post = Entry(index=0, body=" ", title="", guid=guid)
-                post.found = timezone.now()
-                changed = True
+    try:
+        post.title = entry.title
+        post.save(update_fields=["title"])
+    except Exception:
+        logger.exception("Title error")
 
+    try:
+        post.link = entry.link
+        post.save(update_fields=["link"])
+    except Exception:
+        logger.exception("Link error")
 
-                try:
-                    post.created  = datetime.datetime.fromtimestamp(time.mktime(entry.published_parsed))
-                except Exception:
+    try:
+        post.image_url = entry.image.href
+        post.save(update_fields=["image_url"])
+    except Exception:
+        pass
+
+    try:
+        post.author = entry.author
+        post.save(update_fields=["author"])
+    except Exception:
+        logger.exception('Author error')
+        post.author = ""
+
+    try:
+        post.body = body
+        post.save(update_fields=["body"])
+        # output.write(p.body)
+    except Exception:
+        logger.exception('Body Error')
+
+    try:
+        seen_files = []
+
+        post_files = entry["enclosures"]
+        non_dupes = []
+
+        # find any files in media_content that aren't already declared as enclosures
+        if "media_content" in entry:
+            for enclosure in entry["media_content"]:
+                found = False
+                for ff in post_files:
+                    if ff["href"] == enclosure["url"]:
+                        found = True
+                        break
+                if not found:
+                    non_dupes.append(enclosure)
+
+            post_files += non_dupes
+
+        for enclosure in list(post.enclosures.all()):
+            # check existing enclosure is still there
+            found_enclosure = False
+            for post_file in post_files:
+
+                href = "href"
+                if href not in post_file:
+                    href = "url"
+
+                length = "length"
+                if length not in post_file:
+                    length = "filesize"
+
+                if post_file[href] == enclosure.href and enclosure.href not in seen_files:
+                    found_enclosure = True
+
                     try:
-                        post.created  = datetime.datetime.fromtimestamp(time.mktime(entry.updated_parsed))
+                        enclosure.length = int(post_file[length])
                     except Exception:
-                        logger.exception("CREATED ERROR")
-                        post.created  = timezone.now()
+                        enclosure.length = 0
 
-                post.source = source_feed
-                post.save()
+                    try:
+                        file_type = post_file["type"]
+                    except Exception:
+                        file_type = "audio/mpeg"  # we are assuming podcasts here but that's probably not safe
+
+                    enclosure.type = file_type
+
+                    if "medium" in post_file:
+                        enclosure.medium = post_file["medium"]
+
+                    if "description" in post_file:
+                        enclosure.description = post_file["description"][:512]
+
+                    enclosure.save()
+                    break
+            if not found_enclosure:
+                enclosure.delete()
+            seen_files.append(enclosure.href)
+
+        for post_file in post_files:
+
+            href = "href"
+            if href not in post_file:
+                href = "url"
+
+            length = "length"
+            if length not in post_file:
+                length = "filesize"
 
             try:
-                post.title = entry.title
-                post.save(update_fields=["title"])
-            except Exception:
-                logger.exception("Title error")
+                if post_file[href] not in seen_files:
 
-            try:
-                post.link = entry.link
-                post.save(update_fields=["link"])
-            except Exception:
-                logger.exception("Link error")
+                    try:
+                        length = int(post_file[length])
+                    except Exception:
+                        length = 0
 
-            try:
-                post.image_url = entry.image.href
-                post.save(update_fields=["image_url"])
+                    try:
+                        file_type = post_file["type"]
+                    except Exception:
+                        file_type = "audio/mpeg"
+
+                    enclosure = Enclosure(post=post, href=post_file[href], length=length, type=file_type)
+
+                    if "medium" in post_file:
+                        enclosure.medium = post_file["medium"]
+
+                    if "description" in post_file:
+                        enclosure.description = post_file["description"][:512]
+
+                    enclosure.save()
             except Exception:
                 pass
 
-            try:
-                post.author = entry.author
-                post.save(update_fields=["author"])
-            except Exception:
-                logger.exception('Author error')
-                post.author = ""
-
-            try:
-                post.body = body
-                post.save(update_fields=["body"])
-                # output.write(p.body)
-            except Exception:
-                logger.exception('Body Error')
-
-            try:
-                seen_files = []
-
-                post_files = entry["enclosures"]
-                non_dupes = []
-
-                # find any files in media_content that aren't already declared as enclosures
-                if "media_content" in entry:
-                    for enclosure in entry["media_content"]:
-                        found = False
-                        for ff in post_files:
-                            if ff["href"] == enclosure["url"]:
-                                found = True
-                                break
-                        if not found:
-                            non_dupes.append(enclosure)
-
-                    post_files += non_dupes
-
-                for enclosure in list(post.enclosures.all()):
-                    # check existing enclosure is still there
-                    found_enclosure = False
-                    for post_file in post_files:
-
-                        href = "href"
-                        if href not in post_file:
-                            href = "url"
-
-                        length = "length"
-                        if length not in post_file:
-                            length = "filesize"
-
-                        if post_file[href] == enclosure.href and enclosure.href not in seen_files:
-                            found_enclosure = True
-
-                            try:
-                                enclosure.length = int(post_file[length])
-                            except Exception:
-                                enclosure.length = 0
-
-                            try:
-                                file_type = post_file["type"]
-                            except Exception:
-                                file_type = "audio/mpeg"  # we are assuming podcasts here but that's probably not safe
-
-                            enclosure.type = file_type
-
-                            if "medium" in post_file:
-                                enclosure.medium = post_file["medium"]
-
-                            if "description" in post_file:
-                                enclosure.description = post_file["description"][:512]
-
-                            enclosure.save()
-                            break
-                    if not found_enclosure:
-                        enclosure.delete()
-                    seen_files.append(enclosure.href)
-
-                for post_file in post_files:
-
-                    href = "href"
-                    if href not in post_file:
-                        href = "url"
-
-                    length = "length"
-                    if length not in post_file:
-                        length = "filesize"
-
-                    try:
-                        if post_file[href] not in seen_files:
-
-                            try:
-                                length = int(post_file[length])
-                            except Exception:
-                                length = 0
-
-                            try:
-                                file_type = post_file["type"]
-                            except Exception:
-                                file_type = "audio/mpeg"
-
-                            enclosure = Enclosure(post=post, href=post_file[href], length=length, type=file_type)
-
-                            if "medium" in post_file:
-                                enclosure.medium = post_file["medium"]
-
-                            if "description" in post_file:
-                                enclosure.description = post_file["description"][:512]
-
-                            enclosure.save()
-                    except Exception:
-                        pass
-
-            except Exception:
-                logger.exception("No enclosures")
+    except Exception:
+        logger.exception("No enclosures")
 
     if is_first and source_feed.posts.all().count() > 0:
         # If this is the first time we have parsed this
@@ -757,7 +756,7 @@ def parse_feed_json(source_feed: Source, feed_content) -> tuple[bool, bool]:
             post.title = title
 
             try:
-                post.created  = pyrfc3339.parse(entry["date_published"])
+                post.created  = entry["date_published"]
             except Exception:
                 logger.exception("CREATED ERROR")
                 post.created  = timezone.now()

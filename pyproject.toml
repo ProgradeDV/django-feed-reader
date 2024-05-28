@@ -20,3 +20,8 @@ dependencies = [
     'feedparser',
     'beautifulsoup4',
     ]
+
+[project.optional-dependencies]
+dev = [
+  'requests_mock',
+]
