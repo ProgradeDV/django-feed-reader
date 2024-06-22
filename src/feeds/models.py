@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 from django.db import models
 import django.utils as django_utils
 from django.utils.deconstruct import deconstructible
+from django.utils.timezone import now
 
 
 @deconstructible
@@ -87,7 +88,7 @@ class Entry(models.Model):
     title         = models.TextField(blank=True)
     body          = models.TextField() # content
     link          = models.CharField(max_length=512, blank=True, null=True)
-    created       = models.DateTimeField(db_index=True, auto_now_add=True)
+    created       = models.DateTimeField(db_index=True, default=now)
     guid          = models.CharField(max_length=512, blank=True, null=True, db_index=True) # id
     author        = models.CharField(max_length=255, blank=True, null=True)
     image_url     = models.CharField(max_length=512, blank=True, null=True)
