@@ -10,7 +10,7 @@ from feeds.models import Source
 logger = logging.getLogger('SourceQuery')
 
 
-def query_source(source: Source) -> feedparser.util.FeedParserDict:
+def query_source(source: Source, no_cache: bool) -> feedparser.util.FeedParserDict:
     """
     Retrieve the feed data from the given url
 
@@ -24,7 +24,10 @@ def query_source(source: Source) -> feedparser.util.FeedParserDict:
     source.last_polled = datetime.now(tz=ZoneInfo('UTC'))
 
     try:
-        data = feedparser.parse(source.feed_url, etag=source.etag, modified=source.last_modified)
+        if no_cache:
+            data = feedparser.parse(source.feed_url)
+        else:
+            data = feedparser.parse(source.feed_url, etag=source.etag, modified=source.last_modified)
 
     except Exception as exc:
         logger.exception('Error Fetching Feed: %s', source)
@@ -37,13 +40,13 @@ def query_source(source: Source) -> feedparser.util.FeedParserDict:
     source.etag = data.get('etag', source.etag)
     source.last_modified = data.get('modified', source.last_modified)
     source.last_result = data.get("debug_message", '')
-    logger.debug('feedparser debug message: %s', source.last_result)
+    logger.debug('feedparser debug message: "%s"', source.last_result)
 
     # perminent redirect
     if data.status in (301, 308) and 'href' in data and data.href:
         source.feed_url = data.href
 
-    # turn off fields if they get a 404
+    # turn off source if they get a 404
     if 400 <= data.status < 500:
         source.live = False
 

@@ -10,7 +10,7 @@ from .predict import set_due_poll
 logger = logging.getLogger('update_feed')
 
 
-def update_feed(source: Source):
+def update_feed(source: Source, no_cache: bool = False):
     """
     Query the feed, update theentries, and predict when to query next.
 
@@ -19,7 +19,7 @@ def update_feed(source: Source):
     """
     logger.info('Updating Feed %s', source)
 
-    feed_data = query_source(source)
+    feed_data = query_source(source, no_cache)
     if not feed_data:
         source.save()
         return

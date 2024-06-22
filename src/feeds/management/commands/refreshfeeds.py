@@ -25,6 +25,7 @@ class Command(BaseCommand):
         parser.add_argument("--url", type=str)
         parser.add_argument("--max", type=int, default=DEFAULT_MAX_FEEDS)
         parser.add_argument("--all-feeds", action='store_true')
+        parser.add_argument("--no-cache", action='store_true')
 
 
     def handle(self, *args, **options):
@@ -47,8 +48,9 @@ class Command(BaseCommand):
 
         if options['max']:
             sources = sources[:options['max']]
-
+        
+        logger.info('Updating %d Sources', len(sources))
         for source in sources:
-            update_feed(source)
+            update_feed(source, options['no_cache'])
 
         logger.info('Finished')

@@ -119,6 +119,8 @@ def update_entries(source: Source, entries_data: feedparser.util.FeedParserDict)
     - source (Source): the source instance we're creating entried for
     - entries_data (FeedParserDict): the raw data parsed from the fetch operation
     """
+    logger.debug('Parsing %d Entries', len(entries_data))
+
     for entry_data in entries_data:
         entry = get_or_create_entry(source, entry_data)
         update_enclosures(entry, entry_data)
