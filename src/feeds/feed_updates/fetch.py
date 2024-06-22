@@ -39,7 +39,7 @@ def query_source(source: Source, no_cache: bool) -> feedparser.util.FeedParserDi
     source.status_code = data.status
     source.etag = data.get('etag', source.etag)
     source.last_modified = data.get('modified', source.last_modified)
-    source.last_result = data.get("debug_message", '')
+    source.last_result = data.get("debug_message", data.get("bozo_exception", ''))
     logger.debug('feedparser debug message: "%s"', source.last_result)
 
     # perminent redirect

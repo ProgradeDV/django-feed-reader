@@ -15,8 +15,8 @@ SOURCE_FIELD_KEYS = {
     'title': ('title',),
     'subtitle': ('subtitle',),
     'site_url': ('href',),
-    'image_url': ('image.href', 'img'),
-    'icon_url': ('logo','icon', 'facicon'),
+    'image_url': ('image.href', 'image', 'img'),
+    'icon_url': ('logo', 'icon', 'facicon'),
     'author': ('author',),
     'description': ('description'),
 }
@@ -175,6 +175,9 @@ def update_enclosures(entry: Entry, entry_data: feedparser.util.FeedParserDict):
             href = 'https://www.youtube.com/embed/' + entry_data.link.split('?v=')[1],
             type = 'youtube',
         )
+
+    if not hasattr(entry_data, 'enclosures'):
+        return
 
     for enclosure_data in entry_data.enclosures:
         enclosure = Enclosure.objects.create(
