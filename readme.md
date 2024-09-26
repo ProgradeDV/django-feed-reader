@@ -28,15 +28,53 @@ This app builds on top of the FeedParser library to provide feed management, sto
 4. Set `FEEDS_FORCE_UPDATE_SOURCE_FIELDS` to False to only update source fields (like name and description) when they are empty.
 5. Setup a mechanism to periodically refresh the feeds (see below)
 
-## Basic Models
+# Models
+
+## Source
 
 A feed is represented by a `Source` object which has (among other things) a `feed_url`.
 
-`Source`s have `Posts` which contain the content.
+| Field | Type | Description |
+| ----------- | ----------- |  ----------- |
+| name | models.CharField(max_length=255, blank=True, null=True) | The name of the source. This gets defined on source creation and does not get updated by the rss feed query
+| title | models.CharField(max_length=255, blank=True, null=True) | the title of the feed as given by the feed query
+| subtitle | models.TextField(max_length=255, blank=True, null=True) |
+| site_url | models.URLField(max_length=255, blank=True, null=True) | A url to the source website, not the rss feed
+| feed_url | models.URLField(max_length=512, unique=True) # href | The rss feed url
+| image_url | models.URLField(max_length=512, blank=True, null=True) | A url to an image for use as the feed thumbnail
+| icon_url | models.URLField(max_length=512, blank=True, null=True) | A url to an image for use as the feed icon
+| author | models.CharField(max_length=255, blank=True, null=True) | The author name
+| description | models.TextField(null=True, blank=True) | The feed description
 
-`Posts` may have `Enclosure`s which is what podcasts use to send their audio.  The app does not download enclosures, if you want to do that you will need to it in your project using the url provided.
+The above fields are the fields ment for display, many more exist for use in tracking when to query the feed next. See models.py for more information.
 
-A full description of the models and their fields is coming soon (probably).  In the mean  time, why not read `models.py`, it's all obvious stuff.
+## Entries
+`Source`s have `Entry`s which contain the content.
+
+| Field | Type | Description |
+| ----------- | ----------- |  ----------- |
+| source      | models.ForeignKey(Source, on_delete=models.CASCADE, related_name='entries') | Forign key to the Source
+| body        | models.TextField() | Text for the body of the entry
+| title       | models.TextField(blank=True) | The entry title
+| link        | models.CharField(max_length=512, blank=True, null=True) | A url to the entry on the original site
+| created     | models.DateTimeField(db_index=True, default=now) | Creation timestamp
+| guid        | models.CharField(max_length=512, blank=True, null=True, db_index=True) | unique entry id
+| author      | models.CharField(max_length=255, blank=True, null=True) | The authors name
+| image_url   | models.CharField(max_length=512, blank=True, null=True) | A url to an image to be used as the entry thumbnail
+| found       | models.DateTimeField(auto_now_add=True) | A timestamp of when django_feed_reader's polling routine found it
+
+## Enclosures
+
+`Entry`s may have `Enclosure`s which are attached files, eg: what podcasts use to send their audio. This module does not download enclosures, if you want to do that you will need to do it in your project using the url provided.
+
+| Field | Type | Description |
+| ----------- | ----------- |  ----------- |
+| entry | models.ForeignKey(Entry, on_delete=models.CASCADE, related_name='enclosures') | Forign key to it's source Entry
+| length | models.IntegerField(default=0) | how long is this media
+| href | models.CharField(max_length=512) | The url link to the media
+| type | models.CharField(max_length=256) | a string describing the media type: "audio", "vidio", "youtube", etc
+| medium | models.CharField(max_length=25, null=True, blank=True) | file extention
+| description | models.CharField(max_length=512, null= True, blank=True) | Text description of the media
 
 
 ## Refreshing feeds

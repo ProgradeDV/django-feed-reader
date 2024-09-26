@@ -1,5 +1,5 @@
 """
-This module contins the functions that predict when the next feed entry will be posted based on past performance
+This module contains the functions that predict when the next feed entry will be posted based on past data
 """
 from statistics import stdev, median, mean
 from datetime import datetime, timedelta, time, date
@@ -12,11 +12,10 @@ MAX_ENTRIES = 50
 
 
 def set_due_poll(source: Source) -> datetime:
-    """
-    Sets when the given feed should net be shecked
+    """Calculate and set when the given source should next be polled
 
     ### Parameters
-    - source: the feed source to set the poll date
+    - source: the feed source to set the poll date on
     """
     entries = list(Entry.objects.all()[:MAX_ENTRIES])
 
@@ -44,21 +43,20 @@ def set_due_poll(source: Source) -> datetime:
 
 
 def predict_time(entries: list[Entry]) -> tuple[time, timedelta]:
-    """
-    Predicts the time of day and standard deviation of the next entry
+    """Predicts the time of day and standard deviation from it of the next entry
 
     ### Parameters
     - entries, a list of feed entries
 
     ### Returns
-    - time: the time of day predicted
+    - time: the of day predicted
     - timedelta: the standard defiation
     """
     if not entries:
         return time(hour=12), timedelta(seconds=0)
 
     # convert all created times to seconds since midnight
-    seconds = [delta_since_midnight(entry.created) for entry in entries]
+    seconds = [seconds_since_midnight(entry.created) for entry in entries]
     mean_value, deviation = circled_mean(seconds, 0, 86400)
 
     deviation_dt = timedelta(seconds=deviation)
@@ -69,8 +67,7 @@ def predict_time(entries: list[Entry]) -> tuple[time, timedelta]:
 
 
 def circled_mean(data: list, min_value, max_value) -> tuple:
-    """
-    Find the mean of data that wraps around
+    """Find the mean of data that wraps around a circle
 
     ### Parameters
     - data (list): the data to find the mean of
@@ -82,32 +79,35 @@ def circled_mean(data: list, min_value, max_value) -> tuple:
     - the standard deviation
     """
     middle = (min_value + max_value)/2
-    gap = max_value - min_value
+    range_length = max_value - min_value
     sorted_data = sorted(data)
 
-    for i, value in enumerate(sorted_data):
+    # find the index of the first data point above the middle 
+    for middle_index, value in enumerate(sorted_data):
         if value >= middle:
             break
 
-    base_mean = mean(data)
-    base_dev = stdev(data, base_mean)
+    unswapped_mean = mean(data)
+    unswapped_deviation = stdev(data, unswapped_mean)
 
-    swapped_data = sorted_data[i:] + [gap + value for value in sorted_data[:i]]
+    # shift the data below the middle to above the range by one length
+    swapped_data = sorted_data[middle_index:] + [range_length + value for value in sorted_data[:middle_index]]
     swapped_mean = mean(swapped_data)
-    swapped_dev = stdev(swapped_data, swapped_mean)
+    swapped_deviation = stdev(swapped_data, swapped_mean)
 
-    if swapped_dev < base_dev:
+    # if the shifted data is more tightly packed than the unshifted data then the return the shifted result
+    if swapped_deviation < unswapped_deviation:
+        # un-shift the mean
         if swapped_mean >= max_value:
-            swapped_mean -= gap
-        return swapped_mean, swapped_dev
+            swapped_mean -= range_length
+        return swapped_mean, swapped_deviation
 
-    return base_mean, base_dev
+    return unswapped_mean, unswapped_deviation
 
 
 
-def delta_since_midnight(date_time: datetime) -> float:
-    """
-    converta a datetime object into a float representing the total seconds since midnight
+def seconds_since_midnight(date_time: datetime) -> float:
+    """Convert a datetime object into a float representing the total seconds since midnight
 
     ### Parameters
     - date_time (datetime): the object to convert
@@ -120,8 +120,11 @@ def delta_since_midnight(date_time: datetime) -> float:
 
 
 def predict_day(entries: list[Entry]) -> date:
-    """
-    Predicts the next day that there will be a new entry
+    """Predict the next day that there will be a new entry. It does this by tallying what days of the week new
+    entries happen and finding the next one where an entry was posted.
+
+    This does not take into account time of day. so a feed that regularly posts around midnight UTC will get the tally
+    split over many weekdays
     
     ### Parameters
     - entries: list of entries
@@ -134,16 +137,17 @@ def predict_day(entries: list[Entry]) -> date:
         return date.today()
 
     # count by weekday and determine days with entries
-    weekdays = [0]*7
+    weekday_tally = [0]*7
     for entry in entries:
-        weekdays[entry.created.weekday()] += 1
+        weekday_tally[entry.created.weekday()] += 1
 
-    this_weekday = datetime.now().weekday()
+    today_weekday = datetime.now().weekday()
 
-    reordered_weekdays = weekdays[this_weekday:] + weekdays[:this_weekday]
+    # shift the week tally to start on todays weekday 
+    reordered_weekdays = weekday_tally[today_weekday:] + weekday_tally[:today_weekday]
 
-    for i, weekday in enumerate(reordered_weekdays):
-        if weekday > 0:
+    for i, tally in enumerate(reordered_weekdays):
+        if tally > 0:
             return date.today() + timedelta(days=i)
 
     return date.today() + timedelta(days=1)
@@ -151,8 +155,7 @@ def predict_day(entries: list[Entry]) -> date:
 
 
 def due_sources() -> list:
-    """
-    Get the list of sources due for this update.
+    """Get the list of sources due for a poll.
 
     ### Returns
     - list of sources to update

@@ -37,15 +37,22 @@ class Source(models.Model):
     author        = models.CharField(max_length=255, blank=True, null=True) # author
     description   = models.TextField(null=True, blank=True) # info
 
-    # due tracking
+    # === due tracking ===
+    # the last time it was polled
     last_polled   = models.DateTimeField(blank=True, null=True)
-    due_poll      = models.DateTimeField(default=datetime.datetime(1900, 1, 1)) # default to distant past to put new sources to front of queue
+    # the next time to poll, default to distant past to put new sources to front of queue
+    due_poll      = models.DateTimeField(default=datetime.datetime(1900, 1, 1))
 
-    # feedparser tracking
+    # === feedparser tracking ===
+    # for announcing that this is the same user. Some feeds will only send new enties since the last time this etag was used in a query
     etag          = models.CharField(max_length=255, blank=True, null=True)
+    # the last datetime where this feed had new entries
     last_modified = models.CharField(max_length=255, blank=True, null=True)
+    # the http status, or error message off the last poll
     last_result    = models.CharField(max_length=255,blank=True,null=True)
+    # the http status code of the last poll
     status_code    = models.PositiveIntegerField(default=0)
+    # If the feed is not live, then the polling routine will not query it
     live           = models.BooleanField(default=True)
 
     # interval       = models.PositiveIntegerField(default=400)
@@ -64,7 +71,7 @@ class Source(models.Model):
 
     @property
     def best_link(self):
-        """the html link else hte feed link"""
+        """Return a good link to the source"""
         if not self.site_url:
             return self.feed_url
         return self.site_url
@@ -72,7 +79,7 @@ class Source(models.Model):
 
     @property
     def display_name(self) -> str:
-        """The name to render"""
+        """The best name for display to the user"""
         if self.name:
             return self.name
         if self.title:
