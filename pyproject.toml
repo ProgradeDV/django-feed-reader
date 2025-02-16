@@ -17,7 +17,7 @@ classifiers = [
 dependencies = [
     'Django',
     'requests',
-    'feedparser @ git+https://github.com/kurtmckee/feedparser.git@develop',
+    'feedparser',
     'beautifulsoup4',
     ]
 
