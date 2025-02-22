@@ -6,10 +6,8 @@ from time import struct_time, strftime
 import feedparser
 from feeds.models import Source, Entry, Enclosure
 
-logger = logging.getLogger('UpdateSources')
+logger = logging.getLogger('Fetch Predict')
 
-MAX_INTERVAL = 60*24 # 1 day
-MIN_INTERVAL = 60 # 1 hour
 
 SOURCE_FIELD_KEYS = {
     'title': ('title',),

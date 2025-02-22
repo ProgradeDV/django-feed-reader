@@ -7,7 +7,6 @@ from zoneinfo import ZoneInfo
 from django.db.models import Q
 from feeds.models import Source, Entry
 
-MIN_TIME_STEP = timedelta(hours=1)
 MAX_ENTRIES = 50
 
 
@@ -34,7 +33,7 @@ def set_next_fetch(source: Source) -> datetime:
     if predicted_date < tomarrow:
         zone_end = datetime.combine(now.date(), mean_time, tzinfo=ZoneInfo('UTC')) + std_dev
         if now < zone_end:
-            source.due_fetch = now + MIN_TIME_STEP
+            source.due_fetch = now + timedelta(seconds=source.min_interval)
             return
 
     # if predicted to be tommarrow, or beyond the zone today, set to poll tomarrow at the begining of the predicted zone
