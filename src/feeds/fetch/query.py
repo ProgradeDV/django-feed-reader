@@ -25,7 +25,11 @@ def query_source(source: Source, no_cache: bool) -> feedparser.util.FeedParserDi
     """
     logger.info('Requesting Source: %s', source)
     now = datetime.now(tz=ZoneInfo('UTC'))
-    interval = (now - source.last_feched).total_seconds()
+
+    if source.last_feched is not None:
+        interval = (now - source.last_feched).total_seconds()
+    else:
+        interval = 0
 
     headers = headers={
         "Accept-Encoding": "gzip",
