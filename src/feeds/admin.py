@@ -21,20 +21,26 @@ class SourceAdmin(admin.ModelAdmin):
     @admin.action(description="Refresh Feeds")
     def update_feeds(self, request, queryset):
         """This admin action will update the selected sources"""
+        sucsesses = 0
+        failed = 0
+
         for source in queryset:
             fetch_feed(source, no_cache=True)
+            if source.status_code < 400:
+                sucsesses += 1
+            else:
+                failed += 1
 
-        n_updated = len(queryset)
+        message = ngettext(
+                f"{sucsesses} feed was updated.",
+                f"{sucsesses} feeds were updated.",
+                sucsesses,
+            ) + f' {failed} failed'
 
         self.message_user(
             request,
-            ngettext(
-                "%d feed was updated.",
-                "%d feeds were updated.",
-                n_updated,
-            )
-            % n_updated,
-            messages.SUCCESS,
+            message,
+            messages.SUCCESS if failed == 0 else messages.ERROR,
         )
 
     def entries_link(self, source: models.Source) -> str:
