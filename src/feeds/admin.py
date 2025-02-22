@@ -16,10 +16,10 @@ class SourceAdmin(admin.ModelAdmin):
     """
     list_display = ["name", "entries_link", 'status_code', 'last_result', 'due_fetch']
     readonly_fields = ('entries_link',)
-    actions = ['update_feeds']
+    actions = ['fetch_feeds']
 
     @admin.action(description="Fetch selected feeds")
-    def update_feeds(self, request, queryset):
+    def fetch_feeds(self, request, queryset):
         """This admin action will update the selected sources"""
         sucsesses = 0
         failed = 0
