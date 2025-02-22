@@ -18,7 +18,7 @@ class SourceAdmin(admin.ModelAdmin):
     readonly_fields = ('entries_link',)
     actions = ['update_feeds']
 
-    @admin.action(description="Refresh Feeds")
+    @admin.action(description="Fetch selected feeds")
     def update_feeds(self, request, queryset):
         """This admin action will update the selected sources"""
         sucsesses = 0
