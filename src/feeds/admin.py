@@ -4,17 +4,45 @@ Register models for admin panel management
 from django.contrib import admin
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-
-# Register your models here.
+from django.contrib import messages
+from django.utils.translation import ngettext
 from feeds import models
+from feeds.feed_updates import update_feed
+
+
+@admin.action(description="Refresh Feeds")
+def update_feeds(modeladmin, request, queryset):
+    """This admin action will update the selected sources"""
+    for source in queryset:
+        update_feed(source, no_cache=True)
 
 
 class SourceAdmin(admin.ModelAdmin):
     """
     Adds link to a sources entries to the admin panel
     """
-
+    list_display = ["name", "entries_link"]
     readonly_fields = ('entries_link',)
+    actions = ['update_feeds']
+
+    @admin.action(description="Refresh Feeds")
+    def update_feeds(self, request, queryset):
+        """This admin action will update the selected sources"""
+        for source in queryset:
+            update_feed(source, no_cache=True)
+
+        n_updated = len(queryset)
+
+        self.message_user(
+            request,
+            ngettext(
+                "%d feed was successfully updated.",
+                "%d feeds were successfully updated.",
+                n_updated,
+            )
+            % n_updated,
+            messages.SUCCESS,
+        )
 
     def entries_link(self, source: models.Source) -> str:
         """
@@ -38,7 +66,7 @@ class EntryAdmin(admin.ModelAdmin):
     """
 
     raw_id_fields = ('source',)
-    list_display = ('title', 'source', 'created', 'guid', 'author')
+    list_display = ('title', 'enclosures_link', 'source', 'created', 'guid', 'author')
     search_fields = ('title',)
 
     readonly_fields = (
