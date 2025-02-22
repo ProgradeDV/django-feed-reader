@@ -1,7 +1,7 @@
 """
 This module contains the functions that predict when the next feed entry will be posted based on past data
 """
-from statistics import stdev, median, mean
+from statistics import stdev, mean
 from datetime import datetime, timedelta, time, date
 from zoneinfo import ZoneInfo
 from django.db.models import Q
