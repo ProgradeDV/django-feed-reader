@@ -10,13 +10,6 @@ from feeds import models
 from feeds.feed_updates import update_feed
 
 
-@admin.action(description="Refresh Feeds")
-def update_feeds(modeladmin, request, queryset):
-    """This admin action will update the selected sources"""
-    for source in queryset:
-        update_feed(source, no_cache=True)
-
-
 class SourceAdmin(admin.ModelAdmin):
     """
     Adds link to a sources entries to the admin panel
@@ -36,8 +29,8 @@ class SourceAdmin(admin.ModelAdmin):
         self.message_user(
             request,
             ngettext(
-                "%d feed was successfully updated.",
-                "%d feeds were successfully updated.",
+                "%d feed was updated.",
+                "%d feeds were updated.",
                 n_updated,
             )
             % n_updated,
