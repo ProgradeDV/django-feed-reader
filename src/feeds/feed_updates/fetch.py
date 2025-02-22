@@ -16,6 +16,7 @@ def query_source(source: Source, no_cache: bool) -> feedparser.util.FeedParserDi
 
     ### Parameters
     - source (Source): the feed source to query
+    - no_cache: feed services can be told to not return posts that have already been queried, set this to true to force a complete query
 
     ### Returns
     - FeedParserDict: feed data
