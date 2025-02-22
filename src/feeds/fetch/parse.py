@@ -8,6 +8,9 @@ from feeds.models import Source, Entry, Enclosure
 
 logger = logging.getLogger('Fetch Predict')
 
+# status codes for errors in parsing
+PARSING_ERROR_STATUS_CODE = 600
+
 
 SOURCE_FIELD_KEYS = {
     'title': ('title',),
@@ -45,6 +48,7 @@ def update_feed(source: Source, content:str):
 
     except Exception as exc:
         logger.exception('Failed to parse source: %s', source.feed_url)
+        source.status_code = PARSING_ERROR_STATUS_CODE
         source.last_result = str(exc)
 
     source.save()
