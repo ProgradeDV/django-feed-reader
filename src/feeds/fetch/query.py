@@ -1,5 +1,5 @@
 """
-Fetch the feed data
+Request the feed data
 """
 import logging
 from datetime import datetime
@@ -10,7 +10,7 @@ from feeds.models import Source
 
 logger = logging.getLogger('SourceQuery')
 
-USER_AGENT = ('Django Feed Reader')
+USER_AGENT = 'Django Feed Reader'
 
 
 def query_source(source: Source, no_cache: bool) -> feedparser.util.FeedParserDict:
@@ -24,25 +24,27 @@ def query_source(source: Source, no_cache: bool) -> feedparser.util.FeedParserDi
     ### Returns
     - FeedParserDict: feed data
     """
-    logger.info('Fetching Source: %s', source)
-    source.last_polled = datetime.now(tz=ZoneInfo('UTC'))
+    logger.info('Requesting Source: %s', source)
+    source.last_feched = datetime.now(tz=ZoneInfo('UTC'))
 
-    headers = headers={"Accept-Encoding": "gzip"}
+    headers = headers={
+        "Accept-Encoding": "gzip",
+        "User-Agent": USER_AGENT,
+        }
     if not no_cache:
         headers["If-None-Match"] = str(source.etag)
         headers["If-Modified-Since"] = str(source.last_modified)
 
-    # fetch the feed
+    # query the feed
     try:
         response = requests.get(
             source.feed_url,
             timeout=10,
-            user_agent=USER_AGENT,
             headers=headers
             )
 
     except Exception as exc:
-        logger.exception('Error Fetching Feed: %s', source)
+        logger.exception('Error Requesting Feed: %s', source)
         source.last_result = str(exc)
         return None
 
@@ -64,17 +66,11 @@ def query_source(source: Source, no_cache: bool) -> feedparser.util.FeedParserDi
 
     elif response.status_code == 429: # 429 means too many requests
         # TODO: slow down feeds that get this response
-        ...
+        return None
 
     # turn off source if we get a 404 or any other 400 code
     elif 400 <= response.status_code < 500:
         source.live = False
-
-    # parse the data
-    try:
-        return feedparser.parse(response.content)
-
-    except Exception as exc:
-        logger.exception('Error Parsing Feed: %s', source)
-        source.last_result = str(exc)
         return None
+
+    return response.content

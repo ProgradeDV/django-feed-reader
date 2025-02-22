@@ -11,7 +11,7 @@ MIN_TIME_STEP = timedelta(hours=1)
 MAX_ENTRIES = 50
 
 
-def set_due_poll(source: Source) -> datetime:
+def set_next_fetch(source: Source) -> datetime:
     """Calculate and set when the given source should next be polled
 
     ### Parameters
@@ -27,18 +27,18 @@ def set_due_poll(source: Source) -> datetime:
 
     # if predicted to be beyond tomarrow, set to check tomarrow anyway, at the end of the curve
     if predicted_date > tomarrow:
-        source.due_poll = datetime.combine(tomarrow, mean_time, tzinfo=ZoneInfo('UTC')) + std_dev
+        source.due_fetch = datetime.combine(tomarrow, mean_time, tzinfo=ZoneInfo('UTC')) + std_dev
         return
 
     # if predicted for today, do minimum steps untill the end of the curve
     if predicted_date < tomarrow:
         zone_end = datetime.combine(now.date(), mean_time, tzinfo=ZoneInfo('UTC')) + std_dev
         if now < zone_end:
-            source.due_poll = now + MIN_TIME_STEP
+            source.due_fetch = now + MIN_TIME_STEP
             return
 
     # if predicted to be tommarrow, or beyond the zone today, set to poll tomarrow at the begining of the predicted zone
-    source.due_poll = datetime.combine(tomarrow, mean_time, tzinfo=ZoneInfo('UTC')) - std_dev
+    source.due_fetch = datetime.combine(tomarrow, mean_time, tzinfo=ZoneInfo('UTC')) - std_dev
 
 
 
@@ -82,7 +82,7 @@ def circled_mean(data: list, min_value, max_value) -> tuple:
     range_length = max_value - min_value
     sorted_data = sorted(data)
 
-    # find the index of the first data point above the middle 
+    # find the index of the first data point above the middle
     for middle_index, value in enumerate(sorted_data):
         if value >= middle:
             break
@@ -143,7 +143,7 @@ def predict_day(entries: list[Entry]) -> date:
 
     today_weekday = datetime.now().weekday()
 
-    # shift the week tally to start on todays weekday 
+    # shift the week tally to start on todays weekday
     reordered_weekdays = weekday_tally[today_weekday:] + weekday_tally[:today_weekday]
 
     for i, tally in enumerate(reordered_weekdays):
@@ -155,10 +155,10 @@ def predict_day(entries: list[Entry]) -> date:
 
 
 def due_sources() -> list:
-    """Get the list of sources due for a poll.
+    """Get the list of sources due for a fetch.
 
     ### Returns
     - list of sources to update
     """
-    sources = Source.objects.filter(Q(due_poll__lt = datetime.now()) & Q(live = True))
-    return sources.order_by("due_poll")
+    sources = Source.objects.filter(Q(due_fetch__lt = datetime.now()) & Q(live = True))
+    return sources.order_by("due_fetch")

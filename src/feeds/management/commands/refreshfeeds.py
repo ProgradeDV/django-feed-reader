@@ -5,8 +5,8 @@ import logging
 from django.core.management.base import BaseCommand, CommandError
 
 from feeds.models import Source
-from feeds.feed_updates import update_feed
-from feeds.feed_updates.predict import due_sources
+from feeds.fetch import update_feed
+from feeds.fetch.predict import due_sources
 
 
 logger = logging.getLogger('RefreshFeeds')
@@ -48,7 +48,7 @@ class Command(BaseCommand):
 
         if options['max']:
             sources = sources[:options['max']]
-        
+
         logger.info('Updating %d Sources', len(sources))
         for source in sources:
             update_feed(source, options['no_cache'])

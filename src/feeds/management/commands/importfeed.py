@@ -4,8 +4,8 @@ Django Command to import a feed source
 import logging
 from django.core.management.base import BaseCommand, CommandError
 from feeds.models import Source
-from feeds.feed_updates.parse import update_source
-from feeds.feed_updates.fetch import query_source
+from feeds.fetch.parse import update_feed
+from feeds.fetch.query import query_source
 
 logger = logging.getLogger('ImportFeed')
 
@@ -37,5 +37,5 @@ class Command(BaseCommand):
         logger.info('Import Finished')
 
         data = query_source(source)
-        update_source(source, data)
+        update_feed(source, data)
         source.save()

@@ -31,6 +31,28 @@ ENTRY_FIELD_KEYS = {
     'image_url':('image.href', 'image', 'media_thumbnail.0.url')
 }
 
+
+def update_feed(source: Source, content:str):
+    """
+    Update the data for the given feed.
+
+    ### Parameters
+    - source (Source): the source object to update
+    - content (str): the content recieved from the query step
+    """
+    try:
+        parsed_data = parse_feed_content(content)
+        update_source_attributes(source, parsed_data.feed)
+        update_entries(source, parsed_data.entries)
+
+    except Exception as exc:
+        logger.exception('Failed to parse source: %s', source.feed_url)
+        source.last_result = str(exc)
+
+    source.save()
+
+
+
 def tree_atribute(parser_data: feedparser.util.FeedParserDict, *paths):
     """
     follow a tree of attributes to attempt to find a value
@@ -73,35 +95,23 @@ def tree_atribute(parser_data: feedparser.util.FeedParserDict, *paths):
 
 
 
-def update_source(source: Source, parser_data: feedparser.util.FeedParserDict):
-    """
-    Update the data for the source.
-
-    ### Parameters
-    - source (Source): the source object to update
-    """
-    try:
-        update_source_fields(source, parser_data.feed)
-        update_entries(source, parser_data.entries)
-
-    except Exception as exc:
-        logger.exception('Failed to parse source: %s', source.feed_url)
-        source.last_result = str(exc)
-
-    source.save()
+def parse_feed_content(content:str) -> feedparser.util.FeedParserDict:
+    """Turn the string response from the query into a searchable dict"""
+    return feedparser.parse(content)
 
 
-def update_source_fields(source: Source, parser_data: feedparser.util.FeedParserDict):
+
+def update_source_attributes(source: Source, feed_data: feedparser.util.FeedParserDict):
     """
     Update the Source from the data
 
     ### Parameters
     - source (Source): the Source instance to update
-    - parser_data (FeedParserDict): the data parsed from the feed fetch
+    - parsed_data (FeedParserDict): the data parsed from the feed fetch
     """
     # for each field, attempt each known path to get to the data
     for field_name, paths in SOURCE_FIELD_KEYS.items():
-        value = tree_atribute(parser_data, *paths)
+        value = tree_atribute(feed_data, *paths)
         if value is None:
             continue
 

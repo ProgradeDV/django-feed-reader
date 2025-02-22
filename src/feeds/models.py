@@ -24,7 +24,7 @@ class ExpiresGenerator():
 
 class Source(models.Model):
     """
-    This is an actual feed that we poll
+    This is the data describing the source of a feed and the fetch behavior
     """
     # fields from feed parser
     name          = models.CharField(max_length=255, blank=True, null=True)
@@ -38,21 +38,21 @@ class Source(models.Model):
     description   = models.TextField(null=True, blank=True) # info
 
     # === due tracking ===
-    # the last time it was polled
-    last_polled   = models.DateTimeField(blank=True, null=True)
-    # the next time to poll, default to distant past to put new sources to front of queue
-    due_poll      = models.DateTimeField(default=datetime.datetime(1900, 1, 1))
+    # the last time it was fetched
+    last_feched   = models.DateTimeField(blank=True, null=True)
+    # the next time to fetch, default to distant past to put new sources to front of queue
+    due_fetch     = models.DateTimeField(default=datetime.datetime(1900, 1, 1))
 
     # === feedparser tracking ===
     # for announcing that this is the same user. Some feeds will only send new enties since the last time this etag was used in a query
     etag          = models.CharField(max_length=255, blank=True, null=True)
     # the last datetime where this feed had new entries
     last_modified = models.CharField(max_length=255, blank=True, null=True)
-    # the http status, or error message off the last poll
+    # the http status, or error message of the last query
     last_result    = models.CharField(max_length=255,blank=True,null=True)
-    # the http status code of the last poll
+    # the http status code of the last query
     status_code    = models.PositiveIntegerField(default=0)
-    # If the feed is not live, then the polling routine will not query it
+    # If the feed is not live, then the fetch routine will not query it
     live           = models.BooleanField(default=True)
 
     # interval       = models.PositiveIntegerField(default=400)

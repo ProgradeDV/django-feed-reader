@@ -7,14 +7,14 @@ from django.utils.safestring import mark_safe
 from django.contrib import messages
 from django.utils.translation import ngettext
 from feeds import models
-from feeds.feed_updates import update_feed
+from feeds.fetch import fetch_feed
 
 
 class SourceAdmin(admin.ModelAdmin):
     """
     Adds link to a sources entries to the admin panel
     """
-    list_display = ["name", "entries_link"]
+    list_display = ["name", "entries_link", 'status_code', 'last_result', 'due_fetch']
     readonly_fields = ('entries_link',)
     actions = ['update_feeds']
 
@@ -22,7 +22,7 @@ class SourceAdmin(admin.ModelAdmin):
     def update_feeds(self, request, queryset):
         """This admin action will update the selected sources"""
         for source in queryset:
-            update_feed(source, no_cache=True)
+            fetch_feed(source, no_cache=True)
 
         n_updated = len(queryset)
 

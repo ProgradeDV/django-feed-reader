@@ -5,7 +5,7 @@ from django.test import TestCase, Client
 from django.conf import settings
 from django.utils import timezone
 from feeds.models import Source, Entry, Enclosure, WebProxy
-from feeds.feed_updates import update_feed
+from feeds.fetch import update_feed
 
 TEST_FILES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)),"testdata")
 BASE_URL = 'http://feed.com/'

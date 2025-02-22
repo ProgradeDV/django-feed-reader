@@ -121,7 +121,7 @@ def read_feed(source_feed: Source):
     old_interval = source_feed.interval
     was302 = False
 
-    source_feed.last_polled = timezone.now()
+    source_feed.last_feched = timezone.now()
 
     agent = get_agent(source_feed)
 

@@ -3,9 +3,9 @@ The methods to update feeds and their entries
 """
 import logging
 from feeds.models import Source
-from .fetch import query_source
-from .parse import update_source, update_source_fields
-from .predict import set_due_poll
+from .query import query_source
+from .parse import update_feed, update_source_attributes, parse_feed_content
+from .predict import set_next_fetch
 
 logger = logging.getLogger('update_feed')
 
@@ -19,12 +19,13 @@ def init_feed(source: Source):
     """
     logger.info('Initializing Feed %s', source)
 
-    feed_data = query_source(source, False)
-    update_source_fields(source, feed_data.feed)
+    feed_content = query_source(source, False)
+    feed_data = parse_feed_content(feed_content)
+    update_source_attributes(source, feed_data.feed)
     source.name = source.title
 
 
-def update_feed(source: Source, no_cache: bool = False):
+def fetch_feed(source: Source, no_cache: bool = False):
     """
     Query the feed, update theentries, and predict when to query next.
 
@@ -34,15 +35,15 @@ def update_feed(source: Source, no_cache: bool = False):
     """
     logger.info('Updating Feed %s', source)
 
-    feed_data = query_source(source, no_cache)
-    if not feed_data:
+    feed_content = query_source(source, no_cache)
+    if feed_content is None:
         source.save()
         return
 
-    update_source(source, feed_data)
-    set_due_poll(source)
+    update_feed(source, feed_content)
+    set_next_fetch(source)
 
-    logger.debug('polled at %s', source.last_polled)
-    logger.debug('due poll set to %s', source.due_poll)
+    logger.debug('polled at %s', source.last_feched)
+    logger.debug('due fetch set to %s', source.due_fetch)
 
     source.save()
