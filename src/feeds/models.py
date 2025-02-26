@@ -31,7 +31,7 @@ class Source(models.Model):
     # the minimum seconds between queries
     min_interval = models.FloatField(default=60*60)
     # the next time to fetch, default to distant past to put new sources to front of queue
-    due_fetch = models.DateTimeField(default=datetime.datetime(1900, 1, 1))
+    due_fetch = models.DateTimeField(default=datetime.datetime(1900, 1, 1, tzinfo=datetime.timezone.utc))
 
     # === request metadata ===
     # Some feeds will only send new enties since the last query this etag was used for
