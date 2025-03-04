@@ -24,7 +24,7 @@ SOURCE_FIELD_KEYS = {
 
 ENTRY_FIELD_KEYS = {
     'title':('title',),
-    'body':('content', 'summary'),
+    'body':('content.0.value', 'content', 'summary'),
     'link':('link',),
     'created':('updated_parsed', 'published_parsed', 'created_parsed', 'updated', 'published', 'created'),
     'guid':('id',),
