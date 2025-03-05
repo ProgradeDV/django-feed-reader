@@ -114,17 +114,3 @@ class Enclosure(models.Model):
     length = models.IntegerField(default=0)
     href   = models.CharField(max_length=512)
     type   = models.CharField(max_length=256)
-    medium = models.CharField(max_length=25, null=True, blank=True)
-    description = models.CharField(max_length=512, null= True, blank=True)
-
-
-
-class WebProxy(models.Model):
-    """
-    This class if for Cloudflare avoidance and contains a list of potential
-    Web proxies that we can try, scraped from the internet
-    """
-    address = models.CharField(max_length=255)
-
-    def __str__(self):
-        return f"Proxy:{self.address}"
