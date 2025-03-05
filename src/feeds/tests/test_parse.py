@@ -38,3 +38,31 @@ class TestParsing(TestCase):
         self.assertIsNone(test_source.icon_url, '')
         self.assertEqual(test_source.author, 'atp@marco.org')
         self.assertIsNone(test_source.description, '')
+
+    def test_youtube_parse(self):
+        test_source = construct_feed('youtube.html')
+
+        self.assertIsNone(test_source.name)
+        self.assertEqual(test_source.title, 'Brandon Sanderson')
+        self.assertIsNone(test_source.subtitle)
+        self.assertEqual(test_source.site_url, 'https://www.youtube.com/channel/UC3g-w83Cb5pEAu5UmRrge-A')
+        self.assertEqual(test_source.feed_url, '')
+        self.assertIsNone(test_source.image_url)
+        self.assertIsNone(test_source.icon_url)
+        self.assertEqual(test_source.author, 'Brandon Sanderson')
+        self.assertIsNone(test_source.description, '')
+
+        self.assertEqual(test_source.entries.count(), 1)
+
+        test_entry = test_source.entries.first()
+
+        self.assertEqual(test_entry.title, 'Every Chapter is Flirting')
+        self.assertEqual(test_entry.body, 'Want to send me something to open?')
+        self.assertEqual(test_entry.link, 'https://www.youtube.com/watch?v=sWvHHM_4Eiw')
+
+        self.assertEqual(test_entry.enclosures.count(), 1)
+
+        test_enclosure = test_entry.enclosures.first()
+
+        self.assertEqual(test_enclosure.type, 'youtube')
+        self.assertEqual(test_enclosure.href, 'https://www.youtube.com/embed/?v=sWvHHM_4Eiw')

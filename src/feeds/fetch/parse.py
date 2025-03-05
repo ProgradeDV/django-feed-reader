@@ -2,6 +2,7 @@
 Functions for updating feeds
 """
 import logging
+from urllib.parse import urlencode, urlparse, parse_qs
 from time import struct_time, strftime
 import feedparser
 from feeds.models import Source, Entry, Enclosure
@@ -29,7 +30,7 @@ ENTRY_FIELD_KEYS = {
     'created':('updated_parsed', 'published_parsed', 'created_parsed', 'updated', 'published', 'created'),
     'guid':('id',),
     'author':('author',),
-    'image_url':('image.href', 'image', 'media_thumbnail.0.url')
+    'image_url':('image.href', 'image', 'media_thumbnail.0.url'),
 }
 
 
@@ -180,19 +181,24 @@ def update_enclosures(entry: Entry, entry_data: feedparser.util.FeedParserDict):
     # delete enclosures that don't exist
     entry.enclosures.all().delete()
 
-    if 'link' in entry_data and entry_data.link.startswith('https://www.youtube.com'):
-        enclosure = Enclosure.objects.create(
-            entry = entry,
-            length = 0,
-            href = 'https://www.youtube.com/embed/' + entry_data.link.split('?v=')[1],
-            type = 'youtube',
-        )
+    # add an enclosure for each youtube video link
+    if link := entry_data.get('link', ''):
+        parsed_link = urlparse(link)
+        query = parse_qs(parsed_link.query)
 
-    if not hasattr(entry_data, 'enclosures'):
-        return
+        if parsed_link.netloc == 'www.youtube.com' and 'v' in query:
+            new_query = urlencode({'v':query['v'][0]}) # reuse only the 'v' parameter
+            embed_link = parsed_link._replace(path='embed/', query=new_query).geturl()
 
-    for enclosure_data in entry_data.enclosures:
-        enclosure = Enclosure.objects.create(
+            Enclosure.objects.create(
+                entry = entry,
+                length = 0,
+                href = embed_link,
+                type = 'youtube',
+            )
+
+    for enclosure_data in entry_data.get('enclosures', []):
+        Enclosure.objects.create(
             entry = entry,
             length = enclosure_data.get('length', 0),
             href = enclosure_data.get('href', ''),
