@@ -67,6 +67,7 @@ class EntryAdmin(admin.ModelAdmin):
     raw_id_fields = ('source',)
     list_display = ('title', 'enclosures_link', 'source', 'created', 'guid', 'author')
     search_fields = ('title',)
+    ordering = ('-created',)
 
     readonly_fields = (
         'enclosures_link',
