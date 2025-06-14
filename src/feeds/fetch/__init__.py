@@ -27,7 +27,7 @@ def init_feed(source: Source):
 
 def fetch_feed(source: Source, no_cache: bool = False):
     """
-    Query the feed, update theentries, and predict when to query next.
+    Query the feed, update the entries, and predict when to query next.
 
     ### Parameters
     - source: the Source object for the feed to update
