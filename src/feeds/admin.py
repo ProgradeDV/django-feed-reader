@@ -14,9 +14,10 @@ class SourceAdmin(admin.ModelAdmin):
     """
     Adds link to a sources entries to the admin panel
     """
-    list_display = ["name", "entries_link", 'status_code', 'last_result', 'due_fetch']
+    list_display = ["display_name", "entries_link", 'status_code', 'last_result', 'due_fetch']
     readonly_fields = ('entries_link',)
     actions = ['fetch_feeds']
+
 
     @admin.action(description="Fetch selected feeds")
     def fetch_feeds(self, request, queryset):
