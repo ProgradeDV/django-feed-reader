@@ -4,8 +4,9 @@ Django Command to import a feed source
 import logging
 from django.core.management.base import BaseCommand, CommandError
 from feeds.models import Source
-from feeds.fetch.parse import update_feed
-from feeds.fetch.query import query_source
+from feeds.fetch import fetch_feed
+from feeds.url_converters import get_rss_url
+from urllib.parse import  urlparse, ParseResult
 
 logger = logging.getLogger('ImportFeed')
 
@@ -24,6 +25,12 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
 
         feed_url = options['feed_url']
+
+        parsed_url = urlparse(feed_url)
+        if not parsed_url.scheme:
+            raise ValueError(f'Not a url: {feed_url}')
+
+        feed_url = get_rss_url(parsed_url)
         logger.info('feed_url = %s', feed_url)
 
         source, _ = Source.objects.get_or_create(feed_url=feed_url)
@@ -32,10 +39,5 @@ class Command(BaseCommand):
         if options['name']:
             logger.info('name = %s', options['name'])
             source.name = options['name']
-            source.save()
 
-        logger.info('Import Finished')
-
-        data = query_source(source)
-        update_feed(source, data)
-        source.save()
+        fetch_feed(source)

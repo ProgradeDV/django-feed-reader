@@ -16,7 +16,7 @@ def get_rss_url(parsed_url:ParseResult) -> str:
     if parsed_url.netloc == 'www.reddit.com':
         return convert_subreddit(parsed_url)
 
-    return parsed_url
+    return parsed_url.geturl()
 
 
 def convert_youtube_channel(parsed_url:ParseResult) -> str:

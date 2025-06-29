@@ -5,7 +5,7 @@ import logging
 from django.core.management.base import BaseCommand, CommandError
 
 from feeds.models import Source
-from feeds.fetch import update_feed
+from feeds.fetch import fetch_feed
 from feeds.fetch.predict import due_sources
 
 
@@ -51,6 +51,6 @@ class Command(BaseCommand):
 
         logger.info('Updating %d Sources', len(sources))
         for source in sources:
-            update_feed(source, options['no_cache'])
+            fetch_feed(source, options['no_cache'])
 
         logger.info('Finished')
