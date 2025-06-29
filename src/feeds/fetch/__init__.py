@@ -10,24 +10,9 @@ from .predict import set_next_fetch
 logger = logging.getLogger('update_feed')
 
 
-def init_feed(source: Source):
-    """
-    Query a feed source to get the title, icon and other fields, does not save changes
-
-    ### Parameters
-    - source: the Source object for the feed to update
-    """
-    logger.info('Initializing Feed %s', source)
-
-    feed_content = query_source(source, False)
-    feed_data = parse_feed_content(feed_content)
-    update_source_attributes(source, feed_data.feed)
-    source.name = source.title
-
-
 def fetch_feed(source: Source, no_cache: bool = False):
     """
-    Query the feed, update the entries, and predict when to query next.
+    Query the feed, update the entries, and predict when to query next. The given source must already exist.
 
     ### Parameters
     - source: the Source object for the feed to update
