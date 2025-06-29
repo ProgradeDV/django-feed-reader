@@ -123,6 +123,8 @@ def update_source_attributes(source: Source, feed_data: feedparser.util.FeedPars
 
         setattr(source, field_name, value)
 
+    source.save()
+
 
 def update_entries(source: Source, entries_data: feedparser.util.FeedParserDict):
     """
