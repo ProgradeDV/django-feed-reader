@@ -25,7 +25,7 @@ def convert_youtube_channel(parsed_url:ParseResult) -> str:
 
         # pull the url
         page = requests.get(parsed_url.geturl(), timeout=5)
-        soup = BeautifulSoup(page.content)
+        soup = BeautifulSoup(page.content, "html.parser")
         link = soup.find(title='RSS')
         return link['href']
 

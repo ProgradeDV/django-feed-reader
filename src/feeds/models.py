@@ -36,7 +36,7 @@ class Source(models.Model):
     # === request metadata ===
     # Some feeds will only send new enties since the last query this etag was used for
     etag = models.CharField(max_length=255, blank=True, null=True)
-    # the last datetime where this feed had new entries
+    # the last datetime where this feed had new entries, this is not a datetime field because this value is from the fetch metadata
     last_modified = models.CharField(max_length=255, blank=True, null=True)
     # the http status, or error message of the last query
     last_result = models.CharField(max_length=255,blank=True,null=True)
