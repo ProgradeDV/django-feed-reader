@@ -3,7 +3,7 @@ requires = ["setuptools >= 58.0", "wheel", "Cython >= 0.29.0"]
 
 [project]
 name = "django_feed_reader"
-version = "2.0.0"
+version = "0.3.0"
 description = "An RSS feed reading library for Django."
 authors = [
   {name = "Tim Polnow", email = "me@timin8er.com"},
