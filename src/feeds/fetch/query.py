@@ -6,6 +6,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import feedparser
 import requests
+from requests.exceptions import RequestException
 from django.conf import settings
 from feeds.models import Source
 
@@ -47,9 +48,10 @@ def query_source(source: Source, no_cache: bool) -> feedparser.util.FeedParserDi
             headers=headers
             )
 
-    except Exception as exc:
-        logger.exception('Error Requesting Feed: %s', source)
+    except RequestException as exc:
+        logger.exception('Error querying the source: %s', source.feed_url)
         source.last_result = str(exc)
+        source.status_code = 600
         return None
 
     # record the feed status and codes

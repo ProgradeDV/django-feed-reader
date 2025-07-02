@@ -12,7 +12,7 @@ class Command(BaseCommand):
     """
     Command to query and show the data for a feed
     """
-    help = 'List all feeds'
+    help = 'Print most fields for a given feed'
 
     def add_arguments(self, parser):
         parser.add_argument("--url", type=str)
