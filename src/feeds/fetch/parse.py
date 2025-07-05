@@ -2,7 +2,7 @@
 Functions for updating feeds
 """
 import logging
-from urllib.parse import urlencode, urlparse, parse_qs
+from urllib.parse import urlencode, urlparse, parse_qs, ParseResult
 from time import struct_time, strftime
 import feedparser
 from feeds.models import Source, Entry, Enclosure
@@ -184,25 +184,62 @@ def update_enclosures(entry: Entry, entry_data: feedparser.util.FeedParserDict):
     entry.enclosures.all().delete()
 
     # add an enclosure for each youtube video link
+    # youtube links may be in the normal 'link' attribute
     if link := entry_data.get('link', ''):
         parsed_link = urlparse(link)
-        query = parse_qs(parsed_link.query)
 
-        if parsed_link.netloc == 'www.youtube.com' and 'v' in query:
-            new_query = urlencode({'v':query['v'][0]}) # reuse only the 'v' parameter
-            embed_link = parsed_link._replace(path='embed/', query=new_query).geturl()
+        if parsed_link.netloc == 'www.youtube.com':
+            create_embeded_youtube_enclosure(entry, None, parsed_link)
 
-            Enclosure.objects.create(
-                entry = entry,
-                length = 0,
-                href = embed_link,
-                type = 'youtube',
-            )
-
+    # for each set of enclosure data:
     for enclosure_data in entry_data.get('enclosures', []):
-        Enclosure.objects.create(
+        parsed_link = urlparse(link)
+
+        if parsed_link.netloc == 'www.youtube.com':
+            create_embeded_youtube_enclosure(entry, enclosure_data, parsed_link)
+            continue
+
+        create_enclosure(entry, enclosure_data)
+
+
+
+def create_enclosure(entry: Entry, enclosure_data: feedparser.util.FeedParserDict) -> Enclosure:
+    """the standard way to create an enclosure"""
+    if not enclosure_data:
+        return None
+
+    return Enclosure.objects.create(
+        entry = entry,
+        length = enclosure_data.get('length', 0),
+        href = enclosure_data.get('href', ''),
+        type = enclosure_data.get('type', ''),
+    )
+
+
+
+def create_embeded_youtube_enclosure(entry: Entry, enclosure_data: feedparser.util.FeedParserDict, youtube_link:ParseResult) -> Enclosure:
+    """youtube enclosures need to be modified to form an embedable link"""
+    # if the link is already an embeded link
+    if youtube_link.path.startswith('embed/'):
+        return Enclosure.objects.create(
             entry = entry,
-            length = enclosure_data.get('length', 0),
-            href = enclosure_data.get('href', ''),
-            type = enclosure_data.get('type', ''),
+            length = 0,
+            href = youtube_link.geturl(),
+            type = 'youtube',
         )
+
+    # check if the youtube link contains a video id
+    # if no video id is present, create a normal enclosure
+    query = parse_qs(youtube_link.query)
+    if 'v' not in query:
+        return create_enclosure(entry, enclosure_data)
+
+    video_id = query['v'][0]
+    embeded_link = f"https://www.youtube.com/embed/{video_id}"
+
+    return Enclosure.objects.create(
+        entry = entry,
+        length = 0,
+        href = embeded_link,
+        type = 'youtube',
+    )
