@@ -21,7 +21,9 @@ def get_rss_url(parsed_url:ParseResult) -> str:
 
 def convert_youtube_channel(parsed_url:ParseResult) -> str:
     """find the rss feed link for a given youtube channel"""
-    if re.match(r"^/@\w+$", parsed_url.path): # mathces "/@{channelname_name}"
+    if re.match(r"^/@\w+$", parsed_url.path): # mathces "/@{channelname_name}..."
+        # remove any parameters
+        parsed_url._replace(query='')
 
         # pull the url
         page = requests.get(parsed_url.geturl(), timeout=5)
